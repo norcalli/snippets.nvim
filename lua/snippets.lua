@@ -1,140 +1,92 @@
---[[
-snippet name
-\tBody
-\t${1:VALUE}
-\t$1
-\t$0
---]]
+local parser = require 'snippets.parser'
+local ux = require 'snippets.nonextmark_inserter'
+local nvu = require 'nvim_utils'
+local api = vim.api
 
+local snippets = {
+-- SNIPPETS_COPYRIGHT_2020_AK_INDUSTRIES_THE_BEST_IN_THE_WORLD = {
+  lua = {
+    req = {
+      {"local ", 1, " = require '", 2, "' ", 1, " ", 0 },
+      {{placeholder = "name"}, {placeholder = "aslkdfja"}}
+      -- {[0] = {}, {placeholder = "name"}, {placeholder = "aslkdfja"}}
+    };
+    req2 = "local $1 = ${2:$1}";
+    todo = "TODO(ashkan): ";
+    ["for"] = "for ${1:i}, ${2:v} in ipairs(${3:t}) do\n$0\nend";
+  };
+  [""] = {
+    loc = "local ${1:11231} = $1";
+    copyright = "COPYRIGHT 2020 ASHKAN KIANI BABYYYYYYYYYY";
+    todo = "TODO(ashkan): ";
+    note = "NOTE($0): ";
+  };
+}
 
-local INTERNAL = true
-local LOG_INTERNAL
-do
-  local noop = function()end
-  if INTERNAL then
-    local inspect = require 'inspect'
-    -- TODO(ashkan): move to utils.
-    local function D(...)
-      local res = {}
-      for i = 1, select("#", ...) do
-        local v = select(i, ...)
-        table.insert(res, inspect(v, {newline='';indent=''}))
-      end
-      print(table.concat(res, ' '))
-      return ...
-    end
-    LOG_INTERNAL = D
-  else
-    LOG_INTERNAL = noop
+SNIPPETS = snippets
+
+local active_snippet
+
+-- TODO(ashkan): validate snippets
+-- 1. Should not have discontinuities in number (or I can auto correct it and pack them together)
+-- 2. $0 should not have a placeholder.
+-- 3. If there's no 0 in the structure, it should be empty in variables?
+-- 4. Check variables exist n' shit.
+
+local function advance_snippet(offset)
+  offset = offset or 1
+  if not active_snippet then
+    -- print("No active snippet")
+    return false
   end
+  -- This indicates finished by returning true.
+  if active_snippet.advance(offset) then
+    active_snippet = nil
+  end
+  return true
 end
 
--- Turn an iterator into a function you can call repeatedly
--- to consume the iterator.
-local function make_iterator(f, s, var)
-  local function helper(head, ...)
-    if head == nil then
-      return nil
-    end
-    var = head
-    return head, ...
+-- TODO(ashkan): if someone undos, the active_snippet has to be erased...?
+local function expand_at_cursor()
+  if active_snippet then
+    -- print("Snippet is already active")
+    return
   end
-  local first_run = true
-  return function()
-    if first_run or var then
-      first_run = false
-      return helper(f(s, var))
+	local row, col = unpack(api.nvim_win_get_cursor(0))
+	local line = api.nvim_get_current_line()
+  -- TODO(ashkan): vim.region?
+  -- unicode... multibyte...
+  -- local col = vim.str_utfindex(line, col)
+
+	local word = line:sub(1, col):match("%S+$")
+  local ft = vim.bo.filetype
+  print(ft, word)
+	local snippet = (snippets[ft] or {})[word]
+
+	if snippet then
+    -- lazily parse.
+    if type(snippet) == 'string' then
+      snippet = {parser.parse_snippet(snippet)}
+      snippets[ft][word] = snippet
     end
-  end
+    api.nvim_win_set_cursor(0, {row, col-#word})
+    api.nvim_set_current_line(line:sub(1, col-#word)..line:sub(col+1))
+    -- By the end of insertion, the position of the cursor should be 
+    active_snippet = ux(snippet[1], snippet[2])
+    -- After insertion we need to start advancing the snippet
+    -- - If there's nothing to advance, we should jump to the $0.
+    -- - If there is no $0 in the structure/variables, we should
+    -- jump to the end of insertion.
+    advance_snippet(1)
+		return true
+	end
+	return false
 end
 
--- Take a string containing the variable substitutions and
--- turn it into a structural representation of a snippet.
---
--- Example:
--- parse_snippet("for ${1:i}, ${2:v} in ipairs(${3:t}) do $0 end")
---   == { 'for '; {'i'; id = 1}; ' '; {'v'; id = 2}; ' in ipairs('...
-local function parse_snippet(body)
-  local R = {}
-  -- TODO(ashkan): error patterns that we can check which don't show up in here.
-  -- Each pattern should return either 1 or 2 things:
-  -- 1. { variable_id, }
-  -- 2. { variable_id, placeholder, }
-  -- NOTE: Ordering is important!
-  -- If one pattern may contain the other, it should be placed higher up.
-  local patterns = {
-    -- TODO(ashkan): allow an empty value in the :} part or throw an error?
-    -- Pattern for ${1:default body}
-    "%${(%d+):([^}]*)}",
-    -- Pattern for $1, $2, etc..
-    "%$(%d+)",
-  }
-
-  local variables = {}
-
-  local start_position = 1
-  for LOOP_IDX = 1, 10000000 do
-    -- try to find a new variable to parse out.
-    local next_value
-    for i, pattern in ipairs(patterns) do
-      local value = {body:find(pattern, start_position)}
-      LOG_INTERNAL(LOOP_IDX, "checking", i, value)
-      if #value > 0 then
-        local new_value
-        if not next_value then
-          new_value = value
-        else
-          -- TODO(ashkan): report which indices.
-          assert(next_value[1] ~= value[1], "Multiple patterns matched the same thing")
-          if next_value[1] > value[1] then
-            LOG_INTERNAL("preferring", i, "over", next_index)
-            new_value = value
-          end
-        end
-        if new_value then
-          next_value = new_value
-        end
-      end
-    end
-
-    if not next_value then
-      break
-    end
-
-    local left_pos, var_id, placeholder, right_pos
-    if #next_value == 3 then
-      left_pos, right_pos, var_id = unpack(next_value)
-    else
-      assert(#next_value == 4, #next_value)
-      left_pos, right_pos, var_id, placeholder = unpack(next_value)
-    end
-    assert(var_id, "var_id is nil")
-    var_id = tonumber(var_id)
-    assert(var_id, "var_id is not a number?")
-
-    if variables[var_id] then
-      if placeholder ~= nil then
-        return nil, "Multiple placeholders defined for variable $"..var_id
-      end
-    end
-    if left_pos ~= start_position then
-      R[#R+1] = body:sub(start_position, left_pos - 1)
-    end
-    variables[var_id] = {
-      placeholder = placeholder;
-    }
-    R[#R+1] = var_id
-    start_position = right_pos+1
-  end
-
-  local tail = body:sub(start_position)
-  if #tail > 0 then
-    R[#R+1] = tail
-  end
-  return R, variables
-end
+vim.api.nvim_set_keymap("i", "<c-k>", "<cmd>lua return require'snippets'.expand_at_cursor() or require'snippets'.advance_snippet(1)<CR>", { noremap = true; })
 
 return {
-  make_iterator = make_iterator;
-  parse_snippet = parse_snippet;
+  expand_at_cursor = expand_at_cursor;
+  advance_snippet = advance_snippet;
 }
+
