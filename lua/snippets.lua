@@ -11,11 +11,13 @@ local snippets = {
       {{placeholder = "name"}, {placeholder = "aslkdfja"}}
       -- {[0] = {}, {placeholder = "name"}, {placeholder = "aslkdfja"}}
     };
+    date = { {1}, {{placeholder = os.date}}; };
     req2 = "local $1 = ${2:$1}";
     todo = "TODO(ashkan): ";
     ["for"] = "for ${1:i}, ${2:v} in ipairs(${3:t}) do\n$0\nend";
   };
   [""] = {
+    date = { {1}, {{placeholder = os.date}}; };
     rec = "local $1 = ${2:$1}";
     loc = "local ${1:11231} = $1";
     copyright = "COPYRIGHT 2020 ASHKAN KIANI BABYYYYYYYYYY";

@@ -14,6 +14,16 @@ local marker_with_placeholder_format = "<`{%d:%s}`>"
 local replacement_marker_format = "<`%d`>"
 local zero_pattern = replacement_marker_format:format(0)
 
+local function get_placeholder(var)
+  if var.placeholder then
+    if type(var.placeholder) == 'function' then
+      return tostring(var.placeholder())
+    end
+    return tostring(var.placeholder)
+  end
+  return ""
+end
+
 local function stringify_structure(structure, variables)
   local R = {}
 
@@ -39,7 +49,7 @@ local function stringify_structure(structure, variables)
           part = format(replacement_marker_format, var_id)
         else
           var.count = (var.count or 0) + 1
-          local placeholder = var.placeholder or ""
+          local placeholder = get_placeholder(var)
           do
             local s = parser.parse_snippet(placeholder)
             for i, part in ipairs(s) do
