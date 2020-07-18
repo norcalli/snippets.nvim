@@ -8,6 +8,7 @@
 local format = string.format
 local api = vim.api
 local splitter = require 'splitter'
+local parser = require 'snippets.parser'
 
 local marker_with_placeholder_format = "<`{%d:%s}`>"
 local replacement_marker_format = "<`%d`>"
@@ -33,10 +34,24 @@ local function stringify_structure(structure, variables)
           error(format("Variable %d found in structure but not variable dictionary", i))
         end
         if seen[var_id] then
+          var.count = var.count + 1
           -- TODO(ashkan): recursive snippets
           part = format(replacement_marker_format, var_id)
         else
-          part = format(marker_with_placeholder_format, var_id, var.placeholder or "")
+          var.count = (var.count or 0) + 1
+          local placeholder = var.placeholder or ""
+          do
+            local s = parser.parse_snippet(placeholder)
+            for i, part in ipairs(s) do
+              if type(part) == 'number' then
+                local subvar = assert(variables[part], "Encountered out of order variables.")
+                subvar.count = (subvar.count or 0) + 1
+                s[i] = replacement_marker_format:format(part)
+              end
+            end
+            placeholder = table.concat(s)
+          end
+          part = format(marker_with_placeholder_format, var_id, placeholder)
           seen[var_id] = true
         end
       end
@@ -133,23 +148,19 @@ local function entrypoint(structure, variables)
       end
 
       local tail = api.nvim_buf_get_lines(0, row-1, -1, false)
-      local placeholder = var.placeholder or ""
-      local marker_pattern = marker_with_placeholder_format:format(current_variable_index, placeholder)
+      local marker_pattern = marker_with_placeholder_format:format(current_variable_index, "()([^}]*)()")
       for i, line in ipairs(tail) do
-        local j = line:find(marker_pattern, 1, true)
+        local j, finish, inner_start, inner, inner_end = line:find(marker_pattern)
         if j then
           local col = j-1
           -- TODO(ashkan): how to make it highlight the word and then delete it
           -- if we type or jump ahead.
           if var.count == 1 then
             api.nvim_win_set_cursor(0, {row+i-1, col})
-            api.nvim_set_current_line(line:sub(1, col)..placeholder..line:sub(col+#marker_pattern+1))
-            api.nvim_win_set_cursor(0, {row+i-1, col+#placeholder})
+            api.nvim_set_current_line(line:sub(1, col)..inner..line:sub(finish+1))
+            api.nvim_win_set_cursor(0, {row+i-1, col+#inner})
           else
-            api.nvim_win_set_cursor(0, {row+i-1, col})
-            api.nvim_set_current_line(line:sub(1, col)..marker_pattern..line:sub(col+#marker_pattern+1))
-            local X = marker_pattern:find(placeholder, 1, true)
-            api.nvim_win_set_cursor(0, {row+i-1, col+X+#placeholder-1})
+            api.nvim_win_set_cursor(0, {row+i-1, inner_end-1})
           end
           break
         end
