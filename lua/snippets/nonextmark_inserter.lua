@@ -7,7 +7,7 @@
 -- TODO(ashkan): bounds check to avoid going to markers which are from previous insertions or something like that?
 local format = string.format
 local api = vim.api
-local splitter = require 'splitter'
+local splitter = require 'snippets.splitter'
 local parser = require 'snippets.parser'
 local U = require 'snippets.common'
 
