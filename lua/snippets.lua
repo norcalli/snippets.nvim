@@ -17,7 +17,14 @@ local snippets = {
     ["for"] = "for ${1:i}, ${2:v} in ipairs(${3:t}) do\n$0\nend";
   };
   [""] = {
-    date = { {1}, {{placeholder = os.date}}; };
+    -- TODO(ashkan): test this.
+    -- date = { {1}, {{placeholder = function()return "$1"end}}; };
+    silly = { {1, 2}, {{}, {placeholder = function()return "$1"end}}; };
+    date2 = { {1}, {{placeholder = os.date}}; };
+    date = {
+      {os.date},
+      {};
+    };
     rec = "local $1 = ${2:$1}";
     loc = "local ${1:11231} = $1";
     copyright = "COPYRIGHT 2020 ASHKAN KIANI BABYYYYYYYYYY";
@@ -35,6 +42,23 @@ local active_snippet
 -- 2. $0 should not have a placeholder.
 -- 3. If there's no 0 in the structure, it should be empty in variables?
 -- 4. Check variables exist n' shit.
+local function validate_snippet(structure, variables)
+  local S = {}
+  -- TODO(ashkan): mutate this?
+  for i, part in ipairs(structure) do
+    if type(part) == 'number' then
+      S[i] = part
+    elseif type(part) == 'string' then
+      S[i] = part
+    elseif type(part) == 'function' then
+      -- TODO(ashkan): pcall
+      S[i] = tostring(part())
+    else
+      error(format("Invalid type in structure: %d, %q", i, type(part)))
+    end
+  end
+  return S, variables
+end
 
 local function advance_snippet(offset)
   offset = offset or 1
@@ -72,10 +96,11 @@ local function expand_at_cursor()
       snippet = {parser.parse_snippet(snippet)}
       snippets[ft][word] = snippet
     end
+    local structure, variables = validate_snippet(snippet[1], snippet[2])
     api.nvim_win_set_cursor(0, {row, col-#word})
     api.nvim_set_current_line(line:sub(1, col-#word)..line:sub(col+1))
     -- By the end of insertion, the position of the cursor should be 
-    active_snippet = ux(snippet[1], snippet[2])
+    active_snippet = ux(structure, variables)
     -- After insertion we need to start advancing the snippet
     -- - If there's nothing to advance, we should jump to the $0.
     -- - If there is no $0 in the structure/variables, we should

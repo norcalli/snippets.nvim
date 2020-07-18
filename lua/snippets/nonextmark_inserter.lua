@@ -66,8 +66,6 @@ local function stringify_structure(structure, variables)
         end
       end
     elseif type(part) == 'string' then
-    else
-      error(format("Invalid type in structure: %d, %q", i, type(part)))
     end
     R[i] = part
   end
