@@ -1,3 +1,17 @@
+local inspect = require 'inspect'
+-- TODO(ashkan): move to utils.
+local function D(...)
+  local res = {}
+  for i = 1, select("#", ...) do
+    local v = select(i, ...)
+    table.insert(res, inspect(v, {newline='';indent=''}))
+  end
+  print(table.concat(res, ' '))
+  return ...
+end
+local deep_equal = require 'deepeq'
+assert(deep_equal)
+
 local format = string.format
 local tests = {}
 local function run_tests()
@@ -13,24 +27,12 @@ local function run_tests()
     else
       error("Invalid type for test "..i)
     end
-    print("\n\n")
+    print()
     print(format("TEST %d: %q", i, name))
-    -- TODO(ashkan): inspect the results.
-    print(pcall(fn))
+    -- TODO(ashkan): use xpcall and print the backtrace on finish
+    D(pcall(fn))
   end
 end
-
--- TODO(ashkan): move to utils.
-local function D(...)
-  local res = {}
-  for i = 1, select("#", ...) do
-    local v = select(i, ...)
-    table.insert(res, vim.inspect(v, {newline='';indent=''}))
-  end
-  print(table.concat(res, ' '))
-  return ...
-end
-local deep_equal = vim.deep_equal
 
 package.path = '../lua/init.lua;../lua/?.lua;'..package.path
 local S = require 'snippets'
@@ -80,9 +82,9 @@ tests[#tests+1] = {
     print("Snippet", body)
     local structure, variables = S.parse_snippet(body)
     D(structure, variables)
-    assert(deep_equal(variables[0], {}))
-    assert(deep_equal(variables[1], {placeholder = "variable"}))
-    assert(deep_equal(structure, {"local ", 1, " = ", 0}))
+    assert(deep_equal(variables[0], {}), "variables[0]")
+    assert(deep_equal(variables[1], {placeholder = "variable"}), "variables[1]")
+    assert(deep_equal(structure, {"local ", 1, " = ", 0}), "structure")
   end
 }
 
@@ -93,9 +95,9 @@ tests[#tests+1] = {
     print("Snippet", body)
     local structure, variables = S.parse_snippet(body)
     D(structure, variables)
-    assert(deep_equal(variables[0], {}))
-    assert(deep_equal(variables[1], {placeholder = "variable"}))
-    assert(deep_equal(structure, {"local ", 1, " = ", 0}))
+    assert(deep_equal(variables[1], {placeholder = "name"}), "variables[1]")
+    assert(deep_equal(variables[2], {placeholder = "$1"}), "variables[2]")
+    assert(deep_equal(structure, {"local ", 1, " = require '", 2, "'"}), "structure")
   end
 }
 
