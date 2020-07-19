@@ -15,9 +15,11 @@ lua require'snippets'.use_suggested_mappings(true)
 " There is only one keybinding specified by the suggested keymappings, which is <C-k>
 " This is exactly equivalent to
 inoremap <c-k> <cmd>lua return require'snippets'.expand_at_cursor() or require'snippets'.advance_snippet(1)<CR>
-" Which will either expand the current snippet at the word or try to jump to the next position for the snippet.
+" Which will either expand the current snippet at the word
+" or try to jump to the next position for the snippet.
+```
 
-lua <<EOF
+```lua
 require'snippets'.snippets = {
 	lua = {
 		["for"] = "for ${1:i}, ${2:v} in ipairs(${3:t}) do\n$0\nend";
