@@ -40,8 +40,6 @@ local snippets = {
 	};
 }
 
-SNIPPETS = snippets
-
 local active_snippet
 
 -- TODO(ashkan): validate snippets
