@@ -17,28 +17,29 @@ local function splitter(sep, plain)
 	function m.finish()
 		return Z
 	end
-  function m.drain(chunk)
-    if chunk then m.update(chunk) end
-    local finished = false
-    return function()
-      if finished then return end
-      local v = m.iter()
-      if v then return v end
-      finished = true
-      return m.finish()
-    end
-  end
-  function m.collect(chunk)
-    if chunk then m.update(chunk) end
-    local r = {}
-    for s in m.iter do
-      r[#r+1] = s
-    end
-    r[#r+1] = m.finish()
-    return r
-  end
+	function m.drain(chunk)
+		if chunk then m.update(chunk) end
+		local finished = false
+		return function()
+			if finished then return end
+			local v = m.iter()
+			if v then return v end
+			finished = true
+			return m.finish()
+		end
+	end
+	function m.collect(chunk)
+		if chunk then m.update(chunk) end
+		local r = {}
+		for s in m.iter do
+			r[#r+1] = s
+		end
+		r[#r+1] = m.finish()
+		return r
+	end
 	return m
 end
 
 return splitter
 
+-- vim:noet sw=3 ts=3
