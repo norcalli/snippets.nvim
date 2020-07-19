@@ -2,6 +2,7 @@ local parser = require 'snippets.parser'
 local ux = require 'snippets.nonextmark_inserter'
 local U = require 'snippets.common'
 local api = vim.api
+local deepcopy = vim.deepcopy
 
 local snippets = {}
 
@@ -28,7 +29,7 @@ local function validate_snippet(structure, variables)
 			error(format("Invalid type in structure: %d, %q", i, type(part)))
 		end
 	end
-	return S, variables
+	return S, variables or {}
 end
 
 local function advance_snippet(offset)
@@ -42,6 +43,28 @@ local function advance_snippet(offset)
 		active_snippet = nil
 	end
 	return true
+end
+
+local function lookup_snippet(ft, word)
+	for _, lutname in ipairs{ft, "_global"} do
+		local lut = snippets[lutname]
+		if lut then
+			local snippet = lut[word]
+			if snippet then
+				-- Compile/parse the snippet upon using if it's a string and store the result back.
+				if type(snippet) == 'string' then
+					-- TODO(ashkan): check for parse errors.
+					local s, v = parser.parse_snippet(snippet)
+					if not s then
+						error(v)
+					end
+					snippet = {s, v}
+					lut[word] = snippet
+				end
+				return snippet
+			end
+		end
+	end
 end
 
 -- TODO(ashkan): if someone undos, the active_snippet has to be erased...?
@@ -61,18 +84,11 @@ local function expand_at_cursor()
 	U.LOG_INTERNAL("expand_at_cursor: filetype,cword=", ft, word)
 	-- Lookup the snippet.
 	-- Check the _global keyword as a fallback for non-filetype specific keys..
-	local snippet =
-		(snippets[ft] or {})[word]
-		or (snippets._global or {})[word]
 	U.LOG_INTERNAL("Snippets", snippets)
+	local snippet = lookup_snippet(ft, word)
 	U.LOG_INTERNAL("found snippet:", snippet)
 
 	if snippet then
-		-- lazily parse.
-		if type(snippet) == 'string' then
-			snippet = {parser.parse_snippet(snippet)}
-			snippets[ft][word] = snippet
-		end
 		local structure, variables = validate_snippet(snippet[1], snippet[2])
 		api.nvim_win_set_cursor(0, {row, col-#word})
 		api.nvim_set_current_line(line:sub(1, col-#word)..line:sub(col+1))
@@ -113,12 +129,18 @@ return setmetatable({
 		end
 	end;
 }, {
+	__index = function(t, k, v)
+		U.LOG_INTERNAL("index", k, v)
+		if k == 'snippets' then
+			return deepcopy(snippets)
+		end
+	end;
 	__newindex = function(t, k, v)
 		U.LOG_INTERNAL("newindex", k, v)
 		if k == 'snippets' then
-			snippets = v
+			snippets = deepcopy(v)
 		end
-	end
+	end;
 })
 
 -- vim:noet sw=3 ts=3
