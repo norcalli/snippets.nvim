@@ -116,3 +116,4 @@ in within a structure after being coerced to a string with `tostring()`.
   - I could potentially then switch to a stack model of pushing new snippets so you could
   do multiple snippets at a time.
 - Limit how far the scanning for snippet markers goes.
+- Matching outer indentation
