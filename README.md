@@ -32,6 +32,28 @@ $0
 
 #endif // AK_$1_H_
 ]];
+    ["#if"] = [[
+#if ${1:CONDITION}
+$0
+#endif // $1
+]];
+    ["inc"] = [[#include "$1"$0]];
+    ["sinc"] = [[#include <$1>$0]];
+    ["struct"] = [[
+typedef struct ${1:name} {
+  $0
+} $1;
+]];
+    ["enum"] = [[
+enum ${1:name} {
+  $0
+}
+]];
+    ["union"] = [[
+union ${1:name} {
+  $0
+}
+]];
 	};
   -- The _global dictionary acts as a global fallback.
   -- If a key is not found for the specific filetype, then
