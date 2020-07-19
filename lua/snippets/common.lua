@@ -1,4 +1,4 @@
-local INTERNAL = false
+local INTERNAL = 0 == 1
 local LOG_INTERNAL
 do
 	local noop = function()end

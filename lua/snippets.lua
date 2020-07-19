@@ -3,42 +3,7 @@ local ux = require 'snippets.nonextmark_inserter'
 local U = require 'snippets.common'
 local api = vim.api
 
-local snippets = {
-	-- SNIPPETS_COPYRIGHT_2020_AK_INDUSTRIES_THE_BEST_IN_THE_WORLD = {
-	lua = {
-		req = {
-			{"local ", 1, " = require '", 2, "' ", 1, " ", 0 },
-			{{placeholder = "name"}, {placeholder = "aslkdfja"}}
-			-- {[0] = {}, {placeholder = "name"}, {placeholder = "aslkdfja"}}
-		};
-		date = { {1}, {{placeholder = os.date}}; };
-		req2 = "local $1 = ${2:$1}";
-		todo = "TODO(ashkan): ";
-		["for"] = "for ${1:i}, ${2:v} in ipairs(${3:t}) do\n$0\nend";
-	};
-	[""] = {
-		-- TODO(ashkan): test this.
-		-- date = { {1}, {{placeholder = function()return "$1"end}}; };
-		silly = { {1, 2}, {{}, {placeholder = function()return "$1"end}}; };
-		date2 = { {1}, {{placeholder = os.date}}; };
-		date = { {os.date}, {}; };
-		uname = { {function()return vim.loop.os_uname().sysname end}, {}; };
-		rec = "local $1 = ${2:$1}";
-		loc = "local ${1:11231} = $1";
-		copyright = "COPYRIGHT 2020 ASHKAN KIANI BABYYYYYYYYYY";
-		todo = "TODO(ashkan): ";
-		note = "NOTE(ashkan): $0";
-	};
-	c = {
-		date = { {os.date}, {}; };
-		epoch = { {os.time}, {}; };
-		uname = { {function()return vim.loop.os_uname().sysname end}, {}; };
-		copyright = "COPYRIGHT 2020 ASHKAN KIANI BABYYYYYYYYYY";
-		todo = "TODO(ashkan): ";
-		note = "NOTE(ashkan): $0";
-		important = "IMPORTANT(ashkan): $0";
-	};
-}
+local snippets = {}
 
 local active_snippet
 
@@ -99,6 +64,8 @@ local function expand_at_cursor()
 	local snippet =
 		(snippets[ft] or {})[word]
 		or (snippets._global or {})[word]
+	U.LOG_INTERNAL("Snippets", snippets)
+	U.LOG_INTERNAL("found snippet:", snippet)
 
 	if snippet then
 		-- lazily parse.
@@ -128,11 +95,17 @@ local example_keymap = {
 	}
 }
 
-return {
+return setmetatable({
 	expand_at_cursor = expand_at_cursor;
 	advance_snippet = advance_snippet;
 	mappings = example_keymap;
-	snippets = snippets;
-}
+}, {
+	__newindex = function(t, k, v)
+		U.LOG_INTERNAL("newindex", k, v)
+		if k == 'snippets' then
+			snippets = v
+		end
+	end
+})
 
 -- vim:noet sw=3 ts=3
