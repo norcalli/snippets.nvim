@@ -33,6 +33,9 @@ $0
 #endif // AK_$1_H_
 ]];
 	};
+  -- The _global dictionary acts as a global fallback.
+  -- If a key is not found for the specific filetype, then
+  -- it will be lookup up in the _global dictionary.
   _global = {
 		date = { {os.date}, {}; };
 		epoch = { {os.time} };
