@@ -99,6 +99,19 @@ return setmetatable({
 	expand_at_cursor = expand_at_cursor;
 	advance_snippet = advance_snippet;
 	mappings = example_keymap;
+	use_suggested_mappings = function(buffer_local)
+		for k, v in pairs(example_keymap) do
+			local mode = k:sub(1,1)
+			local lhs = k:sub(2)
+			local rhs = table.remove(v, 1)
+			local opts = v
+			if buffer_local then
+				api.nvim_buf_set_keymap(0, mode, lhs, rhs, opts)
+			else
+				api.nvim_set_keymap(mode, lhs, rhs, opts)
+			end
+		end
+	end;
 }, {
 	__newindex = function(t, k, v)
 		U.LOG_INTERNAL("newindex", k, v)
