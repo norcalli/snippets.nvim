@@ -42,12 +42,12 @@ local snippets = {
 
 local active_snippet
 
+-- IMPORTANT(ashkan): For function calling to work correctly, this needs to be called! NOT OPTIONAL!
 -- TODO(ashkan): validate snippets
 -- 1. Should not have discontinuities in number (or I can auto correct it and pack them together)
 -- 2. $0 should not have a placeholder.
 -- 3. If there's no 0 in the structure, it should be empty in variables?
 -- 4. Check variables exist n' shit.
--- NOTE
 local function validate_snippet(structure, variables)
 	local S = {}
 	-- TODO(ashkan): mutate this?
@@ -94,7 +94,11 @@ local function expand_at_cursor()
 	local word = line:sub(1, col):match("%S+$")
 	local ft = vim.bo.filetype
 	U.LOG_INTERNAL("expand_at_cursor: filetype,cword=", ft, word)
-	local snippet = (snippets[ft] or {})[word]
+	-- Lookup the snippet.
+	-- Check the _global keyword as a fallback for non-filetype specific keys..
+	local snippet =
+		(snippets[ft] or {})[word]
+		or (snippets._global or {})[word]
 
 	if snippet then
 		-- lazily parse.
@@ -127,6 +131,7 @@ local example_keymap = {
 return {
 	expand_at_cursor = expand_at_cursor;
 	advance_snippet = advance_snippet;
+	mappings = example_keymap;
 	snippets = snippets;
 }
 
