@@ -104,9 +104,13 @@ local function expand_at_cursor()
 	return false
 end
 
+local function expand_or_advance()
+		return expand_at_cursor() or advance_snippet(1)
+end
+
 local example_keymap = {
 	["i<c-k>"] = {
-		"<cmd>lua local s = require'snippets'; return s.expand_at_cursor() or s.advance_snippet(1)<CR>",
+		"<cmd>lua return require'snippets'.expand_or_advance()<CR>";
 		noremap = true;
 	}
 }
@@ -114,6 +118,7 @@ local example_keymap = {
 return setmetatable({
 	expand_at_cursor = expand_at_cursor;
 	advance_snippet = advance_snippet;
+	expand_or_advance = expand_or_advance;
 	mappings = example_keymap;
 	use_suggested_mappings = function(buffer_local)
 		for k, v in pairs(example_keymap) do

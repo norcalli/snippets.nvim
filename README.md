@@ -12,12 +12,13 @@ lua require'snippets'.use_suggested_mappings()
 " This variant will set up the mappings only for the *CURRENT* buffer.
 lua require'snippets'.use_suggested_mappings(true)
 
-" There is only one keybinding specified by the suggested keymappings, which is <C-k>
+" There is only one keybinding specified by the suggested keymappings, which is <C-k>.
 " This is exactly equivalent to
-inoremap <c-k> <cmd>lua return require'snippets'.expand_at_cursor() or require'snippets'.advance_snippet(1)<CR>
-" Which will either expand the current snippet at the word or try to jump to the next position for the snippet.
+inoremap <c-k> <cmd>lua return require'snippets'.expand_or_advance()<CR>
+" which will either expand the current snippet at the word
+" or try to jump to the next position for the snippet.
 
-lua <<EOF
+```lua
 require'snippets'.snippets = {
 	lua = {
 		["for"] = "for ${1:i}, ${2:v} in ipairs(${3:t}) do\n$0\nend";
@@ -67,7 +68,6 @@ union ${1:name} {
 		important = "IMPORTANT(ashkan): ";
   };
 }
-EOF
 ```
 
 By default no snippets are stored inside of `require'snippets'.snippets`.
