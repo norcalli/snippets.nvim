@@ -42,7 +42,7 @@ local function stringify_structure(structure, variables)
 				seen[var_id] = true
 			else
 				if not var then
-					error(format("Variable %d found in structure but not variable dictionary", i))
+					error(format("Variable %d found in structure at index %d but not variable dictionary", var_id, i))
 				end
 				if seen[var_id] then
 					var.count = var.count + 1
@@ -92,7 +92,8 @@ local function entrypoint(structure, variables)
 		max_variable_index = math.max(k, max_variable_index)
 	end
 	local current_variable_index = 0
-	return {
+	local R
+	R = {
 		-- - If there's nothing to advance, we should jump to the $0.
 		-- - If there is no $0 in the structure/variables, we should
 		-- jump to the end of insertion.
@@ -124,12 +125,15 @@ local function entrypoint(structure, variables)
 						end
 						api.nvim_buf_set_lines(0, row-1, -1, false, tail)
 					else
+						R.aborted = true
+						-- TODO(ashkan, 2020-08-15 20:43:25+0900) consume all remaining things automatically?
 						print(format(
 								"Couldn't find what the user wrote for variable %d\n"..
 								"This usually indicates that someone modified part of the markers we use to find the variable\n"..
 								"For example the right brace (}) in <`{1:placeholder}`>",
 								current_variable_index))
 						print("Aborting the current snippet")
+						api.nvim_command "mode"
 						return true
 					end
 				end
@@ -186,6 +190,7 @@ local function entrypoint(structure, variables)
 			end
 		end;
 	}
+	return R
 end
 
 return setmetatable({
