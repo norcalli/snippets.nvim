@@ -7,8 +7,10 @@ local function splitter(sep, plain)
 		end
 	end
 	function m.iter()
-		local starti, endi = Z:find(sep, 1, plain)
+		local starti, endi, start2, end2 = Z:find(sep, 1, plain)
 		if starti then
+			if start2 then starti = start2 end
+			if end2   then endi   = end2-1   end
 			local data = Z:sub(1, starti - 1)
 			Z = Z:sub(endi+1)
 			return data

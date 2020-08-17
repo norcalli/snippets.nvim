@@ -10,16 +10,39 @@ local snippets = {}
 
 local active_snippet
 
-local function validate_placeholder(placeholder, var_id, var)
+local function materialize(v, ...)
+	-- TODO(ashkan, 2020-08-16 02:01:26+0900) callable
+	if type(v) == 'function' then
+		return materialize(v(...), ...)
+	end
+	return v
+end
+
+local function validate_placeholder(placeholder)
 	if type(placeholder) == 'function' then
 		-- TODO(ashkan): pcall?
-		return tostring(assert(placeholder(var_id, var)))
-	elseif type(placeholder) == 'string' then
+		return validate_placeholder(materialize(placeholder))
+	elseif type(placeholder) == 'string' or U.is_snippet(placeholder) then
 		return placeholder
 	elseif placeholder then
 		return tostring(placeholder)
 	end
 end
+
+-- local function validate_transform(transform)
+-- 	-- TODO(ashkan, 2020-08-16 00:07:13+0900) check callable
+-- 	if type(transform) == 'function' then
+-- 		-- TODO(ashkan): pcall?
+-- 		return transform
+-- 	elseif type(transform) == 'string' then
+-- 		-- TODO(ashkan, 2020-08-16 00:22:43+0900) chunkname
+-- 		return U.make_lambda(transform)
+-- 	else
+-- 		return function() return transform end
+-- 	end
+-- end
+
+local snippet_mt = {}
 
 -- IMPORTANT(ashkan): For function calling to work correctly, this needs to be called! NOT OPTIONAL!
 -- TODO(ashkan): validate snippets
@@ -31,21 +54,58 @@ local function validate_snippet(structure, variables)
 	local S = {}
 	local V = {}
 	for i, var in pairs(variables) do
+		local placeholder = ""
+		if var.placeholder then
+			assert(not var.expression, "Have both expression and placeholder")
+			placeholder = assert(validate_placeholder(var.placeholder))
+			-- placeholder = tostring(assert(materialize(var.placeholder)))
+		elseif var.expression then
+			placeholder = assert(validate_placeholder(var.expression))
+			-- placeholder = tostring(assert(materialize(var.expression)))
+		end
+		if var.id then
+			assert(placeholder)
+		-- elseif var.id < 0 then
+		-- 	assert(type(placeholder) == 'string', "Negative variable has no stringable placeholder")
+		-- elseif not var.id then
+		else
+			assert(var.transforms[1])
+			-- assert(placeholder or var.transforms[1])
+		end
 		V[i] = {
-			placeholder = validate_placeholder(var.placeholder, i, var);
+			id = var.id;
+			-- count = var.count;
+			placeholder = placeholder;
+			-- TODO(ashkan, 2020-08-16 01:56:34+0900) add validation
+			transforms = var.transforms or {};
 		}
 	end
 	-- TODO(ashkan): mutate this?
 	for i, part in ipairs(structure) do
 		if type(part) == 'number' then
+			local var = V[part]
 			-- It's a variable id.
-			if not V[part] then
-				V[part] = {}
+			if not var then
+				var = {
+					-- TODO(ashkan, 2020-08-16 02:06:19+0900) this is important...
+					id = part;
+				}
+				V[part] = var
 			end
-			V[part].count = (V[part].count or 0) + 1
+			var.count = (var.count or 0) + 1
+
+			local should_immediately_substitute = (var.id or -1) < 0 and var.placeholder
+
 			-- Negative variables should just be replaced without user input.
-			if part < 0 then
-				S[i] = assert(V[part].placeholder, "Negative variable has no placeholder")
+			-- Same goes for anonymous variables
+			if should_immediately_substitute then
+				-- local placeholder, transform = var.placeholder, var.transforms[var.count]
+				-- TODO(ashkan, 2020-08-16 02:19:30+0900) use transforms?
+				-- if transform then
+				-- 	-- TODO(ashkan, 2020-08-16 02:16:57+0900) make chunkname
+				-- 	-- placeholder = U.evaluate_transform(transform, nil, U.make_params(var.id, placeholder, V
+				-- end
+				S[i] = var.placeholder
 			else
 				S[i] = part
 			end
@@ -53,7 +113,10 @@ local function validate_snippet(structure, variables)
 			S[i] = part
 		elseif type(part) == 'function' then
 			-- TODO(ashkan): pcall
-			S[i] = tostring(part())
+			S[i] = tostring(assert(materialize(part)))
+			-- S[i] = tostring(part())
+		elseif type(part) == 'table' and part.transform then
+			S[i] = part
 		else
 			error(format("Invalid type in structure: %d, %q", i, type(part)))
 		end
@@ -96,10 +159,10 @@ local function lookup_snippet(ft, word)
 					if not s then
 						error(v)
 					end
-					snippet = {s, v}
+					snippet = {structure = s, variables = v}
 					lut[word] = snippet
 				elseif type(snippet) == 'function' then
-					snippet = {{snippet}, {}}
+					snippet = {structure = {snippet}, variables = {}}
 					lut[word] = snippet
 				end
 				return snippet
@@ -146,9 +209,9 @@ local function expand_at_cursor(snippet, expected_word)
 			if not s then
 				error(v)
 			end
-			snippet = {s, v}
+			snippet = {structure = s, variables = v}
 		elseif type(snippet) == 'function' then
-			snippet = {{snippet}, {}}
+			snippet = {structure = {snippet}, variables = {}}
 		else
 			assert(type(snippet) == 'table', "snippet passed must be a table")
 		end
@@ -160,9 +223,11 @@ local function expand_at_cursor(snippet, expected_word)
 	U.LOG_INTERNAL("found snippet:", snippet)
 
 	if snippet then
-		assert(type(snippet) == 'table', "snippet passed must be a table")
-
-		local structure, variables = validate_snippet(snippet[1], snippet[2])
+		-- assert(type(snippet) == 'table', "snippet passed must be a table")
+		if not U.is_snippet(snippet) then
+			error("not a snippet: "..vim.inspect(snippet))
+		end
+		local structure, variables = validate_snippet(snippet.structure, snippet.variables)
 		api.nvim_win_set_cursor(0, {row, col-#word})
 		api.nvim_set_current_line(line:sub(1, col-#word)..line:sub(col+1))
 		-- By the end of insertion, the position of the cursor should be
@@ -203,6 +268,7 @@ return setmetatable({
 	expand_or_advance = expand_or_advance;
 	advance_snippet = advance_snippet;
 	mappings = example_keymap;
+	debug = U.debug;
 	use_suggested_mappings = function(buffer_local)
 		for k, v in pairs(example_keymap) do
 			local mode = k:sub(1,1)
