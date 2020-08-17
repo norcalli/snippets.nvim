@@ -59,9 +59,9 @@ union ${1:name} {
   -- If a key is not found for the specific filetype, then
   -- it will be lookup up in the _global dictionary.
   _global = {
-		date = { {os.date}, {}; };
-		epoch = { {os.time} };
-		uname = { {function()return vim.loop.os_uname().sysname end}, {}; };
+		date = { structure = {os.date}, variables = {}; };
+		epoch = { structure = {os.time}, variables = {} };
+		uname = { structure = {function()return vim.loop.os_uname().sysname end}, variables = {}; };
 		todo = "TODO(ashkan): ";
 		note = "NOTE(ashkan): ";
 		important = "IMPORTANT(ashkan): ";
