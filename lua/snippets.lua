@@ -245,6 +245,7 @@ end
 local function expand_or_advance(offset)
 	if active_snippet then
 		local result = advance_snippet(offset or 1)
+		U.LOG_INTERNAL("expand_or_advance: advance", result)
 		if result == ERRORS.ABORTED then
 			return expand_at_cursor()
 		elseif result == ERRORS.NONE then

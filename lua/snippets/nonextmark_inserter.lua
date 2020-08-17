@@ -337,9 +337,11 @@ local function entrypoint(structure, variables)
 					else
 						api.nvim_win_set_cursor(0, {row+i-1, inner_end-1})
 					end
-					break
+					return
 				end
 			end
+			R.aborted = true
+			return true
 		end;
 	}
 	return R
