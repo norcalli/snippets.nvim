@@ -228,7 +228,7 @@ local function entrypoint(structure, variables)
 			if current_variable_index > 1 then
 				local var_id = current_variable_index-1
 				local var = variables[var_id]
-				if U.variable_needs_postprocessing(var) then
+				if U.variable_needs_postprocessing(var, variables) then
 					local what_the_user_wrote_pattern = marker_with_placeholder_format:format(var_id, "([^}]*)")
 					local tail = api.nvim_buf_get_lines(0, row-1, -1, false)
 					-- Replace the first instance, which has a specific pattern and extract
@@ -329,7 +329,7 @@ local function entrypoint(structure, variables)
 					local col = j-1
 					-- TODO(ashkan): how to make it highlight the word and then delete it
 					-- if we type or jump ahead.
-					if not U.variable_needs_postprocessing(var) then
+					if not U.variable_needs_postprocessing(var, variables) then
 						local replacement_text = apply_transforms(var, current_variable_index, variables)
 						api.nvim_win_set_cursor(0, {row+i-1, col})
 						api.nvim_set_current_line(line:sub(1, col)..replacement_text..line:sub(finish+1))
