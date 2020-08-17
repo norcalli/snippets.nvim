@@ -228,6 +228,7 @@ local function entrypoint(structure, variables)
 			if current_variable_index > 1 then
 				local var_id = current_variable_index-1
 				local var = variables[var_id]
+				U.LOG_INTERNAL("advance post process", var_id, var, variables)
 				if U.variable_needs_postprocessing(var, variables) then
 					local what_the_user_wrote_pattern = marker_with_placeholder_format:format(var_id, "([^}]*)")
 					local tail = api.nvim_buf_get_lines(0, row-1, -1, false)

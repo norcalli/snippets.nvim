@@ -107,18 +107,24 @@ local KINDS = {
 }
 
 local function variable_needs_postprocessing(var, vars)
+	-- TODO(ashkan, 2020-08-17 13:49:27+0900) normal variable transforms may reference
+	-- previous variables, so this should actually check if any variable has transforms...
+
 	-- TODO(ashkan, 2020-08-17 13:14:14+0900) post processing variables may reference
 	-- all variables, so this could always be true
 	-- TODO(ashkan, 2020-08-17 13:14:30+0900) pass variables dictionary in
 	-- so I can see if there are any post processing transforms.
-	for var_id in pairs(vars) do
+	for var_id, var in pairs(vars) do
 		-- TODO(ashkan, 2020-08-17 13:23:33+0900) this is specific to nonextmark_inserter...
 		if var_id > 0 and var_id < 1 then
 			return true
 		end
+		if var.transforms and var.transforms[1] then
+			return true
+		end
 	end
 	-- return true
-	return var.count > 1 or var.transform
+	return var.count > 1 or (var.transforms and var.transforms[1])
 end
 
 -- local post_transform_mt = {}
