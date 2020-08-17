@@ -21,6 +21,7 @@ end
 local function validate_placeholder(placeholder)
 	if type(placeholder) == 'function' then
 		-- TODO(ashkan): pcall?
+		-- return validate_placeholder(placeholder)
 		return validate_placeholder(materialize(placeholder))
 	elseif type(placeholder) == 'string' or U.is_snippet(placeholder) then
 		return placeholder
@@ -94,7 +95,7 @@ local function validate_snippet(structure, variables)
 			end
 			var.count = (var.count or 0) + 1
 
-			local should_immediately_substitute = (var.id or -1) < 0 and var.placeholder
+			local should_immediately_substitute = (var.id or -1) < 0 and type(var.placeholder) == 'string'
 
 			-- Negative variables should just be replaced without user input.
 			-- Same goes for anonymous variables
@@ -105,7 +106,14 @@ local function validate_snippet(structure, variables)
 				-- 	-- TODO(ashkan, 2020-08-16 02:16:57+0900) make chunkname
 				-- 	-- placeholder = U.evaluate_transform(transform, nil, U.make_params(var.id, placeholder, V
 				-- end
-				S[i] = var.placeholder
+				-- TODO(ashkan, 2020-08-18 06:07:19+0900) make this a U.has_transform method.
+				-- TODO(ashkan, 2020-08-18 06:10:22+0900) this is kind of silly. I'm not sure if I should allow
+				-- this since there's almost no point.
+				if var.transforms[var.count] then
+					S[i] = U.evaluate_transform(var.transforms[var.count], nil, U.make_params(var.id, nil, {}))
+				else
+					S[i] = var.placeholder
+				end
 			else
 				S[i] = part
 			end

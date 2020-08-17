@@ -96,33 +96,45 @@ local function merge_into_variables(v1, v2)
 end
 
 stringify_structure = function(structure, variables)
-	local seen = {}
+	local variable_counts = {}
+	local toplevel_variables = {}
 	local transform_index = 0
 
-	local function format_part(part)
+	local function format_part(part, is_recursive)
 		if type(part) == 'number' then
 			local var_id = part
 			local var = variables[var_id]
 			-- $0 is special. It indicates the end of snippet. It should only
 			-- occur once.
 			if var_id == 0 then
+				-- TODO(ashkan, 2020-08-18 06:19:45+0900) check that $0 doesn't happen in a recursive context?
 				assert(not var or (var.placeholder or "") == "", "$0 shouldn't have a placeholder")
-				assert(not seen[var_id], "$0 shouldn't occur more than once")
-				seen[var_id] = 1
+				assert(not variable_counts[var_id], "$0 shouldn't occur more than once")
+				variable_counts[var_id] = 1
 				U.LOG_INTERNAL("F", "zero var")
 				return format(replacement_marker_format, var_id)
 			else
 				if not var then
 					error(format("Variable %d found in structure, but not its variable dictionary", var_id))
 				end
-				if seen[var_id] then
-					seen[var_id] = seen[var_id] + 1
+				-- IDEA(ashkan, Tue 18 Aug 2020 06:25:24 AM JST) AST Based snippets... Dion...
+
+				-- This is to indicate whether or not we should use the user_input marker style or
+				-- the replacement marker style. This would normally be trivial as we could do it
+				-- where the user input should be the first time we see a variable, but, with
+				-- recursive snippets, we want to be able to defer the user_input marker until later
+				-- (which means that it may potentially not exist)...
+				-- TODO(ashkan, 2020-08-18 06:22:17+0900) This is going to be harder than I thought.
+				-- local use_user_input_marker = variable_counts[var_id] == nil
+
+				if variable_counts[var_id] then
+					variable_counts[var_id] = variable_counts[var_id] + 1
 					U.LOG_INTERNAL("F", "replacement var", var_id)
 					-- var.count = var.count + 1
 					-- TODO(ashkan): recursive snippets
 					return replacement_marker_format:format(var_id)
 				else
-					seen[var_id] = 1
+					variable_counts[var_id] = 1
 					-- var.count = (var.count or 0) + 1
 					local placeholder = get_placeholder(var)
 					local snippet
@@ -136,7 +148,7 @@ stringify_structure = function(structure, variables)
 					merge_into_variables(variables, snippet.variables)
 					local string_parts = {}
 					for _, part in ipairs(snippet.structure) do
-						insert(string_parts, format_part(part))
+						insert(string_parts, format_part(part, true))
 					end
 					local stringified_placeholder = concat(string_parts)
 					U.LOG_INTERNAL("F", "first var", var_id, stringified_placeholder)
@@ -167,7 +179,7 @@ stringify_structure = function(structure, variables)
 	end
 	R = concat(R)
 
-	for var_id, count in pairs(seen) do
+	for var_id, count in pairs(variable_counts) do
 		U.LOG_INTERNAL(var_id, count)
 		variables[var_id] = variables[var_id] or {}
 		variables[var_id].count = count
@@ -177,7 +189,7 @@ stringify_structure = function(structure, variables)
 	-- 	structure = structure;
 	-- 	variables = variables;
 	-- }
-	if not seen[0] then
+	if not variable_counts[0] then
 		return R..zero_pattern
 	end
 	return R

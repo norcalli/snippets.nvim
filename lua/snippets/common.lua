@@ -61,8 +61,8 @@ local function make_iterator(f, s, var)
 	end
 end
 
-local function make_params(id, var, vars)
-	return setmetatable({v=var, i=id, vars=vars}, {
+local function make_params(id, user_input, vars)
+	return setmetatable({v=user_input, i=id, vars=vars}, {
 		__index = function(_, k)
 			return (vars[k] or {}).user_input
 		end;
