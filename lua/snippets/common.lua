@@ -1,5 +1,4 @@
 local validate = require 'snippets.validate'
-local isort = require 'snippets.isort'
 local format = string.format
 local concat = table.concat
 local insert = table.insert
