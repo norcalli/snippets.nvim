@@ -195,20 +195,37 @@ local function entrypoint(structure)
 				-- the end region more granularly then until the entire end of file?
 				-- TODO(ashkan, 2020-08-16 00:37:28+0900) use lazy loading interface.
 				local tail = api.nvim_buf_get_lines(0, row-1, -1, false)
+				local zero_point
+				local post_transform_index = 1
+				local last_line = 0
 				for i, line in ipairs(tail) do
-					for _, transform in ipairs(post_transforms) do
-						line = U.find_sub(line, transform.text, transform.marker, 1, true)
+					local j
+					while post_transforms[post_transform_index] do
+						local transform = post_transforms[post_transform_index]
+						line, j = U.find_sub(line, transform.text, transform.marker, 1, true)
+						if j then
+							post_transform_index = post_transform_index + 1
+						else
+							break
+						end
 					end
 
-					local j = line:find(zero_pattern, 1, true)
+					j = nil
+					line, j = U.find_sub(line, "", zero_pattern, 1, true)
 					if j then
-						local col = j-1
-						local word = zero_pattern
-						api.nvim_win_set_cursor(0, {row+i-1, col})
-						api.nvim_set_current_line(line:sub(1, col)..line:sub(col+#word+1))
-						api.nvim_win_set_cursor(0, {row+i-1, col})
-						return true
+						zero_point = {row+i-1, j-1}
 					end
+					tail[i] = line
+					if zero_point and post_transforms[post_transform_index] == nil then
+						last_line = row+i-1
+						break
+					end
+				end
+				-- TODO(ashkan, Tue 18 Aug 2020 04:02:20 PM JST) use last_line
+				if zero_point then
+					api.nvim_buf_set_lines(0, row-1, -1, false, tail)
+					api.nvim_win_set_cursor(0, zero_point)
+					return true
 				end
 				print(
 					"Couldn't find end "..zero_pattern.."?\n"..
