@@ -110,9 +110,9 @@ local function make_context(current_variable_value, variable_dictionary)
 	return setmetatable({
 		v = current_variable_value;
 	}, {
-		__index = setmetatable(variable_dictionary, {
-			__index = function() return "" end;
-		});
+		__index = function(_, k)
+			return rawget(variable_dictionary, k) or ""
+		end
 	})
 end
 
@@ -247,12 +247,14 @@ local function evaluate_snippet(structure)
 			-- apply due to the call to evaluate_variable after this branch.
 			if not var.is_input and var.id and not var_dict[var.id] then
 				var_dict[var.id] = evaluate_variable(var, var_dict)
+				LOG_INTERNAL("Updating var dict", var, var_dict[var.id])
 			end
+			LOG_INTERNAL("Var dict", index, var.id and var_dict[var.id], var, var_dict)
 			-- TODO(ashkan, Tue 18 Aug 2020 01:27:16 PM JST) keep this `or ""`?
 			-- without it, the `req` snippet for lua returns nil.
 			local value = evaluate_variable(var, var_dict) or ""
-			result[index] = value
 			assert(type(value) == 'string', type(value))
+			result[index] = value
 		end
 		-- Sanity check
 		for i, part in ipairs(result) do
