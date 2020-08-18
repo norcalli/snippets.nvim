@@ -201,6 +201,7 @@ local function entrypoint(structure)
 					if j then
 						local col = j-1
 						local word = zero_pattern
+						api.nvim_win_set_cursor(0, {row+i-1, col})
 						api.nvim_set_current_line(line:sub(1, col)..line:sub(col+#word+1))
 						api.nvim_win_set_cursor(0, {row+i-1, col})
 						return true
