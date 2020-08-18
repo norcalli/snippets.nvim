@@ -200,9 +200,9 @@ local function entrypoint(structure)
 					local j = line:find(zero_pattern, 1, true)
 					if j then
 						local col = j-1
-						api.nvim_win_set_cursor(0, {row+i-1, col})
 						local word = zero_pattern
 						api.nvim_set_current_line(line:sub(1, col)..line:sub(col+#word+1))
+						api.nvim_win_set_cursor(0, {row+i-1, col})
 						return true
 					end
 				end
