@@ -12,12 +12,13 @@ local concat = table.concat
 local insert = table.insert
 
 local function parse_directives(s)
-	local r = splitter("[^%%]()()[=|]").collect(" "..s)
-	r[1] = r[1]:sub(2)
-	if r[1] == "" then
-		table.remove(r, 1)
-	end
-	return r
+	if s:match("^%s*$") then return {} end
+	local a, b = s:match("^(:[^|]*[^%%])(|.*)")
+	if a then return {a, b} end
+	local a = s:match("^(=.*)")
+	if a then return {a} end
+	local a = s:match("^(:.*)")
+	if a then return {a} end
 end
 
 local format = string.format
@@ -137,7 +138,7 @@ local function parse_snippet(body)
 		end
 
 		if tail then
-			local directives = parse_directives(tail)
+			local directives = parse_directives(tail) or error("Invalid directives "..vim.inspect(tail))
 			for i, directive in ipairs(directives) do
 				local kind = directive:sub(1,1)
 				if kind == '=' then
@@ -165,6 +166,63 @@ local function parse_snippet(body)
 	-- NOTE: Ordering is important!
 	-- If one pattern may contain the other, it should be placed higher up.
 	local patterns = {
+		function(body, start)
+			local r = find_delimited(body, "${", "}", start)
+			if not r then
+				return
+			end
+			local i1, i2, subnodes = unpack(r)
+			local y = i2
+			local var
+			if not subnodes or #subnodes == 0 then
+				_, _, var = parse_var(body:sub(i1, i2))
+			else
+				local original_body = body
+				local removed = {}
+				for i, v in ipairs(subnodes) do
+					local rem = body:sub(v[1], v[2])
+					insert(removed, rem)
+					U.LOG_INTERNAL(i1, i2, #rem, rem)
+					y = y - #rem + 1
+				end
+				for i = #subnodes, 1, -1 do
+					local v = subnodes[i]
+					body = body:sub(1, v[1]-1)..string.char(i)..body:sub(v[2]+1)
+				end
+				U.LOG_INTERNAL('body', body)
+				local text = body:sub(i1, y)
+				U.LOG_INTERNAL('text', text)
+				local function reconstitute(x)
+					for i, text in ipairs(removed) do
+						x = find_sub(x, text, string.char(i), 1, true)
+					end
+					return x
+				end
+				_, _, var = parse_var(text)
+				if var.placeholder then var.placeholder = reconstitute(var.placeholder) end
+				if var.expression then var.expression = reconstitute(var.expression) end
+				if var.transform then var.transform = reconstitute(var.transform) end
+			end
+			if var then
+				if var.placeholder then
+					local s = assert(parse_snippet(var.placeholder))
+					if #s == 1 and type(s[1]) == 'string' then
+						var.placeholder = s[1]
+					else
+						local evaluator = U.evaluate_snippet(s)
+						var.placeholder = function(context)
+							local inputs = {}
+							for i, v in ipairs(evaluator.inputs) do
+								-- TODO(ashkan, Tue 18 Aug 2020 09:37:37 AM JST) ignore the v.default here?
+								inputs[i] = context[v.id]
+							end
+							return concat(evaluator.evaluate_structure(inputs))
+						end
+					end
+				end
+				return i1, i2, var
+			end
+		end;
 		-- TODO(ashkan): allow an empty value in the :} part or throw an error?
 		-- Pattern for $1, $2, etc..
 		-- "%$(%-?%d+)",
@@ -174,75 +232,7 @@ local function parse_snippet(body)
 				return i1, i2, { id = tonumber(var_id) }
 			end
 		end;
-		function(body, start)
-			local r = find_delimited(body, "${", "}", start)
-			if not r then
-				return
-			end
-			local i1, i2, subnodes = unpack(r)
-			local y = i2
-			if not subnodes or #subnodes == 0 then
-				local _, _, var = parse_var(body:sub(i1, i2))
-				return i1, i2, var
-			end
-			-- U.LOG_INTERNAL(i1, i2, body:sub(i1, i2))
-			-- error("Recursive placeholders aren't supported.")
-			local original_body = body
-			local removed = {}
-			for i, v in ipairs(subnodes) do
-				local rem = body:sub(v[1], v[2])
-				insert(removed, rem)
-				U.LOG_INTERNAL(i1, i2, #rem, rem)
-				y = y - #rem + 1
-			end
-			for i = #subnodes, 1, -1 do
-				local v = subnodes[i]
-				-- U.LOG_INTERNAL(v, removed[i], body:sub(1, v[1]-1), body:sub(v[2]+1), #string.char(i))
-				body = body:sub(1, v[1]-1)..string.char(i)..body:sub(v[2]+1)
-			end
-			U.LOG_INTERNAL('body', body)
-			local text = body:sub(i1, y)
-			U.LOG_INTERNAL('text', text)
-			local function reconstitute(x)
-				local had_sub = false
-				for i, text in ipairs(removed) do
-					local y
-					x, y = find_sub(x, text, string.char(i), 1, true)
-					had_sub = had_sub or y
-				end
-				return x, had_sub
-			end
-			local _, _, var = parse_var(text)
-			if var then
-				if var.placeholder then
-					local had_sub
-					var.placeholder, had_sub = reconstitute(var.placeholder)
-					-- var.placeholder, had_sub = find_sub(var.placeholder, inner, marker, 1, true)
-					if had_sub then
-						local s, v = parse_snippet(var.placeholder)
-						if not s then
-							error(v)
-						end
-						var.placeholder = { structure = s; variables = v }
-						U.LOG_INTERNAL('placeholder', var.placeholder)
-					end
-				end
-				if var.expression then
-					var.expression = reconstitute(var.expression)
-					-- var.expression = find_sub(var.expression, inner, marker, 1, true)
-				end
-				if var.transform then
-					var.transform = reconstitute(var.transform)
-					-- var.transform = find_sub(var.transform, inner, marker, 1, true)
-				end
-				return i1, i2, var
-			end
-		end;
 	}
-
-	local variables = {}
-
-	-- local verbatim_index = 1e10
 
 	local start_position = 1
 	for LOOP_IDX = 1, 10000000 do
@@ -273,55 +263,22 @@ local function parse_snippet(body)
 			var.transform = U.make_lambda(var.transform, chunk_name)
 		end
 
-		if var.id then
-			local existing_var = variables[var.id]
-			if existing_var then
-				local v1 = var.placeholder or var.expression
-				local v2 = existing_var.placeholder or existing_var.expression
-				if v1 ~= nil and v2 ~= nil then
-					return nil, ("Multiple placeholders defined for variable $%s: %s vs %s"):format(var.id, v1, v2)
-				end
-				existing_var.count = existing_var.count + 1
-				existing_var.transforms[existing_var.count] = var.transform
-			else
-				variables[var.id] = {
-					id = var.id;
-					count = 1;
-					-- expression = var.expression;
-					-- placeholder = var.placeholder;
-					placeholder = var.placeholder or var.expression or "";
-					transforms = {var.transform};
-				}
-			end
-			R[#R+1] = var.id
-		elseif var.expression then
-			if var.transform then
-				R[#R+1] = function()
-					var.transform(var.expression())
-				end
-			else
-				R[#R+1] = var.expression
-			end
-		elseif var.transform then
-			-- verbatim_index = verbatim_index + 1
-			-- local var_id = verbatim_index
-			-- variables[var_id] = {
-			-- 	count = 1;
-			-- 	placeholder = "";
-			-- 	transforms = { var.transform };
-			-- }
-			-- R[#R+1] = var_id
-			R[#R+1] = U.make_post_transform(var.transform)
-		else
-		end
+		R[#R+1] = U.structure_variable(
+			(var.id or 0) > 0,
+			var.id,
+			var.placeholder or var.expression or "",
+			-- TODO(ashkan, Tue 18 Aug 2020 09:30:38 AM JST) negative value order?
+			var.id or -1,
+			var.transform
+		)
 	end
 
 	local tail = body:sub(start_position)
 	if #tail > 0 then
 		R[#R+1] = tail
 	end
-	U.LOG_INTERNAL("parse result", R, variables)
-	return R, variables
+	U.LOG_INTERNAL("parse result", R)
+	return R
 end
 
 -- local function parse_file(file_name)
