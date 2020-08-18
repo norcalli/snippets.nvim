@@ -237,6 +237,9 @@ local function evaluate_snippet(structure)
 			else
 				result[i] = part
 			end
+			if result[i] and type(result[i]) ~= 'string' then
+				result[i] = tostring(result[i])
+			end
 			assert(type(result[i]) == 'string', type(result[i]))
 		end
 		LOG_INTERNAL("evaluate_structure", result)

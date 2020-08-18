@@ -175,14 +175,14 @@ local function entrypoint(structure)
 			U.LOG_INTERNAL("Current variable", current_index)
 			-- Jump to the 0 if we're done/finished
 			if current_index > #evaluator.inputs then
-				assert(updated_structure)
 				local post_transforms = {}
 				for i, v in pairs(evaluator.structure) do
 					-- This is a post transform.
 					if U.is_variable(v) and v.transform and not v.id then
+						updated_structure = updated_structure or evaluator.evaluate_structure(resolved_inputs)
 						insert(post_transforms, {
 							marker = post_transform_marker_format:format(i);
-							text = updated_structure[i];
+							text = assert(updated_structure)[i];
 							id = i;
 						})
 					end

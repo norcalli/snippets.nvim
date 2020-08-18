@@ -52,7 +52,8 @@ local function lookup_snippet(ft, word)
 					if type(snippet) == 'string' then
 						snippet = assert(parser.parse_snippet(snippet, nil, lutname..'.'..word))
 					end
-					lut[word] = U.make_snippet(snippet)
+					snippet = U.make_snippet(snippet)
+					lut[word] = snippet
 				end
 				return snippet
 			end
