@@ -19,6 +19,8 @@ local function parse_directives(s)
 	if a then return {a} end
 	local a = s:match("^(:.*)")
 	if a then return {a} end
+	local a = s:match("^(|.*)")
+	if a then return {a} end
 end
 
 local format = string.format
