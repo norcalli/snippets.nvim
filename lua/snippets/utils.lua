@@ -60,7 +60,7 @@ local function lowest_id(s)
   return id or -1
 end
 
-local function prefix_lines_with_function(s, fn)
+local function prefix_new_lines_with_function(s, fn)
   local S = into_snippet(s)
   local prefix_var = U.make_preorder_function_component(fn)
   -- Use a unique negative number so it's evaluated first.
@@ -91,19 +91,35 @@ local function prefix_lines_with_function(s, fn)
       insert(R, v)
     end
   end
-  return U.make_snippet(R)
+  return U.make_snippet(R), prefix_var
 end
 
 local function match_indentation(s)
-  return prefix_lines_with_function(s, get_line_indent)
+  return prefix_new_lines_with_function(s, get_line_indent)
 end
 
 local function match_comment(s)
-  return prefix_lines_with_function(s, get_line_comment)
+  return prefix_new_lines_with_function(s, get_line_comment)
+end
+
+local function force_comment(s)
+  local function get_comment_prefix()
+    -- Add an extra space to it.
+    return vim.bo.commentstring:format(""):gsub("%S$", "%0 ")
+  end
+  local S = prefix_new_lines_with_function(s, get_comment_prefix)
+  insert(S, 1, U.make_preorder_function_component(function()
+    local comment = get_line_comment()
+    if comment ~= "" then
+      return ""
+    end
+    return get_comment_prefix()
+  end))
+  return S
 end
 
 local function match_comment_or_indentation(s)
-  return prefix_lines_with_function(s, function()
+  return prefix_new_lines_with_function(s, function()
     local comment = get_line_comment()
     if comment == "" then
       return get_line_indent()
@@ -115,8 +131,9 @@ end
 return {
   match_indentation = match_indentation;
   match_comment = match_comment;
+  force_comment = force_comment;
   match_comment_or_indentation = match_comment_or_indentation;
   into_snippet = into_snippet;
   lowest_id = lowest_id;
-  prefix_lines_with_function = prefix_lines_with_function;
+  prefix_new_lines_with_function = prefix_new_lines_with_function;
 }
