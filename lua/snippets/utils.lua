@@ -47,7 +47,7 @@ local function lowest_id(s)
   local id
   for i, v in ipairs(s) do
     if U.is_variable(v) then
-      if id then
+      if id and v.id then
         id = min(v.id, id)
       else
         id = v.id
