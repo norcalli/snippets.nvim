@@ -61,18 +61,6 @@ local function entrypoint(structure)
       end
     end)
     return concat(evaluator.evaluate_structure(inputs))
-
-    -- local inputs = {}
-    -- for i, v in ipairs(evaluator.inputs) do
-    --   if resolved_inputs[i] then
-    --     inputs[i] = resolved_inputs[i]
-    --   elseif v.default == "" then
-    --     inputs[i] = format("${%s}", v.id)
-    --   end
-    -- end
-    -- -- Use the transformations/defaults.
-    -- inputs = evaluator.evaluate_inputs(inputs)
-    -- return concat(evaluator.evaluate_structure(inputs))
   end
 
   local R

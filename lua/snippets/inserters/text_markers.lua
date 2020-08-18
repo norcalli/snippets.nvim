@@ -31,16 +31,6 @@ local function null_if_empty(s)
 	return s
 end
 
-local function check_merge(v1, v2, message)
-	if v1 == v2 then
-		return v1
-	elseif (v1 or v2) ~= (v2 or v1) then
-		error(message)
-	else
-		return (v1 or v2) 
-	end
-end
-
 local function entrypoint(structure)
 	local evaluator = U.evaluate_snippet(structure)
 
