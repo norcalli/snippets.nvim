@@ -96,6 +96,11 @@ local function normalize_structure_component(v)
 		return make_preorder_function_component(v)
 		-- Alternatively, evaluate after the fact with:
 		-- return make_postorder_function_component(v)
+	elseif type(v) == 'table' then
+		-- Structural matching hack.
+		if v.order and (v.id or v.default or v.is_input or v.transform) ~= nil then
+			return setmetatable(v, variable_mt)
+		end
 	else
 		error("No idea how to handle structure component: "..vim.inspect(v))
 	end

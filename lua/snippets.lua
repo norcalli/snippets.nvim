@@ -157,6 +157,7 @@ return setmetatable({
 	advance_snippet = advance_snippet;
 	mappings = example_keymap;
 	debug = U.debug;
+	u = require 'snippets.utils';
 	use_suggested_mappings = function(buffer_local)
 		for k, v in pairs(example_keymap) do
 			local mode = k:sub(1,1)
