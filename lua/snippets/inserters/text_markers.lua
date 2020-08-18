@@ -100,16 +100,19 @@ local function entrypoint(structure)
 		-- jump to the end of insertion.
 		advance = function(offset)
 			offset = offset or 1
+			current_index = math.max(math.min(current_index + offset, #evaluator.inputs + 1), 0)
 			if offset > 0 then
-				-- Force an undopoint
-				vim.cmd "let &undolevels = &undolevels"
-				insert(undo_points, vim.fn.changenr())
-				-- print("undo point", undo_points[#undo_points])
+				-- Don't set an undo point for $0
+				if current_index <= #evaluator.inputs then
+					-- Force an undopoint
+					vim.cmd "let &undolevels = &undolevels"
+					insert(undo_points, vim.fn.changenr())
+					-- print("undo point", undo_points[#undo_points])
+				end
 			else
 				-- print("jumping to undo point", undo_points[#undo_points])
 				vim.cmd("undo "..(table.remove(undo_points) - 1))
 			end
-			current_index = math.max(math.min(current_index + offset, #evaluator.inputs + 1), 0)
 			-- D(current_index)
 			if current_index == 0 then
 				R.aborted = true
