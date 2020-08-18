@@ -13,3 +13,5 @@ local function entrypoint(structure)
   return R
 end
 
+return entrypoint
+-- vim:noet sw=3 ts=3

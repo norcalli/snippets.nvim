@@ -60,4 +60,4 @@ local function validate(conf)
 end
 
 return validate
-
+-- vim:noet sw=3 ts=3

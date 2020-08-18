@@ -43,5 +43,4 @@ local function splitter(sep, plain)
 end
 
 return splitter
-
 -- vim:noet sw=3 ts=3

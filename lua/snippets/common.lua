@@ -1,4 +1,5 @@
 local validate = require 'snippets.validate'
+local isort = require 'snippets.isort'
 local format = string.format
 local concat = table.concat
 local insert = table.insert
@@ -32,11 +33,12 @@ local function materialize(v, ...)
 	return v
 end
 
-local snippet_mt = {}
+local function nil_if_empty(s)
+	if s == "" then return end
+	return s
+end
 
--- local function is_snippet(t)
--- 	return type(t) == 'table' and t.structure
--- end
+local snippet_mt = {}
 
 local function is_snippet(v)
 	if type(v) == 'table' then
@@ -74,13 +76,6 @@ end
 
 local function is_normalized_structure_component(v)
 	return is_variable(v) or type(v) == 'string'
-	-- if is_variable(v) then
-	-- 	return true
-	-- elseif type(v) == 'string' then
-	-- 	return true
-	-- else
-	-- 	return false
-	-- end
 end
 
 local function make_preorder_function_component(fn)
@@ -144,9 +139,6 @@ local function evaluate_variable(var, defined_variables)
 	return value
 end
 
-local function snippet_render_command()
-end
-
 local readonly_mt = {
 	__newindex = function()end;
 }
@@ -155,30 +147,36 @@ local readonly_mt = {
 -- any requests for further input.
 local function evaluate_snippet(structure)
 	LOG_INTERNAL("Evaluating", structure)
-	-- local dynamic_components = {}
+	local dynamic_components = {}
 	local required_inputs = {}
 	local seen_inputs = {}
 	local S = {}
 	local zero_index
 
+	-- Normalize/validate and extract dynamic components so we can figure out
+	-- their evaluation order.
 	for i, part in ipairs(structure) do
-		-- TODO(ashkan, Tue 18 Aug 2020 09:11:47 AM JST) do the normalization here?
-		-- assert(is_normalized_structure_component(part))
 		part = normalize_structure_component(part)
 		S[i] = part
 		if is_variable(part) then
+			assert(part.order, "Our structure components aren't being normalized properly.")
 			if part.id == 0 then
 				zero_index = i
+			else
+				-- Ignore 0 since it shouldn't be evaluated.
+				insert(dynamic_components, {i=i, v=part})
 			end
-			-- insert(dynamic_components, {i, part})
 			if part.is_input then
 				assert(part.id)
 				if seen_inputs[part.id] then
 					local input = seen_inputs[part.id]
-					-- The default should only be specified once.
-					-- TODO(ashkan, Tue 18 Aug 2020 09:18:31 AM JST) error message
-					-- assert(not (part.default and input.default))
-					input.default = input.default or part.default
+					-- The default should only be specified once, but hard erroring on
+					-- it seems excessive, so instead we're just going to take the
+					-- first one and call that "good enough," leaving the responsibility
+					-- to the caller to make it work well.
+					-- Since we use "" as the default value often, we add an extra
+					-- step here of preferring any new values if they exist.
+					input.default = nil_if_empty(input.default) or part.default or ""
 				else
 					local input = {
 						id = part.id;
@@ -193,9 +191,15 @@ local function evaluate_snippet(structure)
 		end
 	end
 
-	-- table.sort(dynamic_components, function(a, b)
-	-- 	return a[2].order < b[2].order
-	-- end)
+	-- We use the index to disambiguate the evaluation order of dynamic
+	-- components with the same `order` since table.sort is not stable.
+	table.sort(dynamic_components, function(a, b)
+		if a.v.order == b.v.order then
+			return a.i < b.i
+		else
+			return a.v.order < b.v.order
+		end
+	end)
 
 	table.sort(required_inputs, function(v1, v2)
 		return v1.order < v2.order
@@ -221,26 +225,34 @@ local function evaluate_snippet(structure)
 	local evaluate_structure = function(user_inputs)
 		local inputs, var_dict = evaluate_inputs(user_inputs)
 		local result = {}
+		-- Make a copy of the structure, but skip the dynamic components for now
+		-- since we need to evaluate them in a particular order.
 		for i, part in ipairs(S) do
 			if is_variable(part) then
-				local var = part
-				-- TODO(ashkan, Tue 18 Aug 2020 11:58:48 AM JST) @performance
-				-- For non-interactive variables, the first value shall be the
-				-- value for all instances. Further transformations will still
-				-- apply due to the call to evaluate_variable after this branch.
-				if not var.is_input and var.id and not var_dict[var.id] then
-					var_dict[var.id] = evaluate_variable(var, var_dict)
-				end
-				-- TODO(ashkan, Tue 18 Aug 2020 01:27:16 PM JST) keep this `or ""`?
-				-- without it, the `req` snippet for lua returns nil.
-				result[i] = evaluate_variable(var, var_dict) or ""
+				result[i] = ""
 			else
 				result[i] = part
 			end
-			if result[i] and type(result[i]) ~= 'string' then
-				result[i] = tostring(result[i])
-			end
 			assert(type(result[i]) == 'string', type(result[i]))
+		end
+		for _, v in ipairs(dynamic_components) do
+			local index = v.i
+			local var = v.v
+			-- For non-interactive variables, the first value shall be the
+			-- value for all instances. Further transformations will still
+			-- apply due to the call to evaluate_variable after this branch.
+			if not var.is_input and var.id and not var_dict[var.id] then
+				var_dict[var.id] = evaluate_variable(var, var_dict)
+			end
+			-- TODO(ashkan, Tue 18 Aug 2020 01:27:16 PM JST) keep this `or ""`?
+			-- without it, the `req` snippet for lua returns nil.
+			local value = evaluate_variable(var, var_dict) or ""
+			result[index] = value
+			assert(type(value) == 'string', type(value))
+		end
+		-- Sanity check
+		for i, part in ipairs(result) do
+			assert(type(part) == 'string', type(part))
 		end
 		LOG_INTERNAL("evaluate_structure", result)
 		return result
@@ -269,17 +281,6 @@ local function evaluate_snippet(structure)
 	}
 end
 
-local function validate_placeholder(placeholder)
-	if type(placeholder) == 'function' then
-		-- TODO(ashkan): pcall?
-		return validate_placeholder(materialize(placeholder))
-	elseif type(placeholder) == 'string' or is_snippet(placeholder) then
-		return placeholder
-	elseif placeholder then
-		return tostring(placeholder)
-	end
-end
-
 -- Turn an iterator into a function you can call repeatedly
 -- to consume the iterator.
 local function make_iterator(f, s, var)
@@ -299,27 +300,6 @@ local function make_iterator(f, s, var)
 	end
 end
 
-local function make_params(id, user_input, vars)
-	return setmetatable({v=user_input, i=id, vars=vars}, {
-		__index = function(_, k)
-			return (vars[k] or {}).user_input
-		end;
-	})
-end
-
-local function evaluate_placeholder(placeholder, id, var, vars, params)
-	if type(placeholder) == 'function' then
-		local params = params or make_params(id, var, vars)
-		-- TODO(ashkan): pcall?
-		return evaluate_placeholder(assert(placeholder(params)), id, var, vars, params)
-		-- return tostring(assert(placeholder{var=var, id=var_id, vars=vars}))
-	elseif type(placeholder) == 'string' then
-		return placeholder
-	elseif placeholder then
-		return tostring(placeholder)
-	end
-end
-
 local function make_lambda(body, chunkname)
 	if type(body) == 'function' then
 		return body
@@ -327,27 +307,10 @@ local function make_lambda(body, chunkname)
 	return assert(loadstring("local S = ... return "..body, chunk_name))
 end
 
-local function evaluate_transform(transform, chunkname, ...)
-	transform = make_lambda(transform, chunkname)
-	local s, err = pcall(transform, ...)
-	if not s then
-		vim.api.nvim_err_writeln("snippets: Failed to evaluate transform: "..err)
-		vim.api.nvim_command "mode"
-		return
-	end
-	return err
-end
-
-local KINDS = {
-	NORMAL           = 0;
-	AUTO_EXPAND_PRE  = 1;
-	AUTO_EXPAND_POST = 2;
-}
-
+-- TODO(ashkan, Wed 19 Aug 2020 12:28:10 AM JST) move this to text_markers or delete it.
 local function variable_needs_postprocessing(var, vars)
 	-- TODO(ashkan, 2020-08-17 13:49:27+0900) normal variable transforms may reference
 	-- previous variables, so this should actually check if any variable has transforms...
-
 	-- TODO(ashkan, 2020-08-17 13:14:14+0900) post processing variables may reference
 	-- all variables, so this could always be true
 	-- TODO(ashkan, 2020-08-17 13:14:30+0900) pass variables dictionary in
@@ -390,16 +353,12 @@ return {
 	LOG_INTERNAL = function(...)
 		return LOG_INTERNAL(...)
 	end;
+
 	make_iterator = make_iterator;
 	make_lambda = make_lambda;
 	is_snippet = is_snippet;
 	materialize = materialize;
-	validate_placeholder = validate_placeholder;
-	make_params = make_params;
-	evaluate_placeholder = evaluate_placeholder;
-	evaluate_transform = evaluate_transform;
 	variable_needs_postprocessing = variable_needs_postprocessing;
-	make_post_transform = make_post_transform;
 
 	evaluate_snippet = evaluate_snippet;
 	structure_variable = structure_variable;
@@ -412,6 +371,5 @@ return {
 	make_snippet = make_snippet;
 
 	find_sub = find_sub;
-	KINDS = KINDS;
 }
 -- vim:noet sw=3 ts=3

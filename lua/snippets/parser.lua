@@ -1,10 +1,3 @@
---[[
-snippet name
-\tBody
-\t${1:VALUE}
-\t$1
-\t$0
---]]
 local U = require 'snippets.common'
 local splitter = require 'snippets.splitter'
 local format = string.format
@@ -23,8 +16,6 @@ local function parse_directives(s)
 	if a then return {a} end
 end
 
-local format = string.format
-local insert = table.insert
 local function find_delimited(body, start, stop, start_pos)
 	local subnodes = {}
 	local escaped_start = "\\"..start
@@ -57,6 +48,8 @@ local function find_delimited(body, start, stop, start_pos)
 	end
 end
 
+-- TODO(ashkan, 2020-08-19 00:35:42+0900) this is more boardly useful and
+-- should be extracted.
 local function find_next_multiple(body, patterns, start_position)
 	-- try to find a new variable to parse out.
 	local next_value

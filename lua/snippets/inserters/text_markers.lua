@@ -51,16 +51,7 @@ local function entrypoint(structure)
 			inputs[i] = replacement_marker_format:format(v.id)
 		end
 		local S = evaluator.evaluate_structure(inputs)
-		-- local placeholders = evaluator.evaluate_defaults({}, function(var)
-		-- 	if type(var.default) == 'function' then
-		-- 		return post_transform_marker_format:format(var.first_index)
-		-- 	end
-		-- 	return var.default
-		-- end)
 		local placeholders = evaluator.evaluate_inputs{}
-		-- local placeholders = evaluator.evaluate_defaults({}, function(id)
-			-- return replacement_marker_format:format(id)
-		-- end)
 		for i, v in ipairs(evaluator.inputs) do
 			S[v.first_index] = marker_with_placeholder_format:format(v.id, placeholders[i])
 		end
@@ -78,14 +69,11 @@ local function entrypoint(structure)
 	local undo_points = {}
 	vim.cmd "let &undolevels = &undolevels"
 	insert(undo_points, vim.fn.changenr())
-	-- print("undo point", undo_points[#undo_points])
 
 	U.LOG_INTERNAL('body', body)
 	local row, col = unpack(api.nvim_win_get_cursor(0))
 	local current_line = api.nvim_get_current_line()
 	local lines = splitter("\n", true).collect(body)
-	-- local line_count = #lines
-	-- local tail_count = #lines[#lines]
 	lines[1] = current_line:sub(1, col)..lines[1]
 	lines[#lines] = lines[#lines]..current_line:sub(col+1)
 	api.nvim_buf_set_lines(0, row-1, row, false, lines)
@@ -107,13 +95,10 @@ local function entrypoint(structure)
 					-- Force an undopoint
 					vim.cmd "let &undolevels = &undolevels"
 					insert(undo_points, vim.fn.changenr())
-					-- print("undo point", undo_points[#undo_points])
 				end
 			else
-				-- print("jumping to undo point", undo_points[#undo_points])
 				vim.cmd("undo "..(table.remove(undo_points) - 1))
 			end
-			-- D(current_index)
 			if current_index == 0 then
 				R.aborted = true
 				return true
@@ -133,9 +118,6 @@ local function entrypoint(structure)
 					-- Replace the first instance, which has a specific pattern and extract
 					-- what the user wrote from inside of the pattern.
 					for i, line in ipairs(tail) do
-						-- if offset < 0 then
-						-- 	D(i, line)
-						-- end
 						local user_input = line:match(user_input_pattern)
 						if user_input then
 							resolved_inputs[input_index] = user_input
@@ -193,7 +175,7 @@ local function entrypoint(structure)
 
 				-- TODO(ashkan): can I figure out how much was inserted to determine
 				-- the end region more granularly then until the entire end of file?
-				-- TODO(ashkan, 2020-08-16 00:37:28+0900) use lazy loading interface.
+				--   NOTE(ashkan, 2020-08-16 00:37:28+0900) use lazy loading interface to solve above.
 				local tail = api.nvim_buf_get_lines(0, row-1, -1, false)
 				local zero_point
 				local post_transform_index = 1
@@ -233,15 +215,6 @@ local function entrypoint(structure)
 				return true
 			end
 
-			-- if not var.count then
-			-- 	var.count = 0
-			-- 	for _, part in ipairs(structure) do
-			-- 		if part == current_index then
-			-- 			var.count = var.count + 1
-			-- 		end
-			-- 	end
-			-- end
-
 			local tail = api.nvim_buf_get_lines(0, row-1, -1, false)
 			local marker_pattern = marker_with_placeholder_format:format(current_index, "()([^}]*)()")
 			for i, line in ipairs(tail) do
@@ -250,13 +223,10 @@ local function entrypoint(structure)
 					local col = j-1
 					-- TODO(ashkan, Tue 18 Aug 2020 01:34:59 PM JST) for fully resolved variables, skip the placeholder.
 					local new_inner_text
-					-- if type(evaluator.inputs[current_index].default) == 'function' then
-					-- 	new_inner_text = evaluator.evaluate_inputs(resolved_inputs)
-					-- end
 					new_inner_text = evaluator.evaluate_inputs(resolved_inputs)[current_index]
-					-- D("new_inner text", current_index, inner, new_inner_text)
 					if new_inner_text then
 						local text = new_inner_text
+						-- TODO(ashkan, Wed 19 Aug 2020 12:30:44 AM JST) use nvim_buf_set_lines instead of this nonsense.
 						api.nvim_win_set_cursor(0, {row+i-1, col})
 						api.nvim_set_current_line(line:sub(1, inner_start-1)..text..line:sub(inner_end))
 						api.nvim_win_set_cursor(0, {row+i-1, inner_start+#text-1})
@@ -264,20 +234,15 @@ local function entrypoint(structure)
 						api.nvim_win_set_cursor(0, {row+i-1, inner_end-1})
 					end
 
-					-- -- TODO(ashkan): how to make it highlight the word and then delete it
-					-- -- if we type or jump ahead.
-					-- if false then
-					-- -- if not U.variable_needs_postprocessing(var, variables) then
-					-- 	-- local replacement_text = apply_transforms(var, current_index, variables)
-					-- 	-- api.nvim_win_set_cursor(0, {row+i-1, col})
-					-- 	-- api.nvim_set_current_line(line:sub(1, col)..replacement_text..line:sub(finish+1))
-					-- 	-- api.nvim_win_set_cursor(0, {row+i-1, col+#inner})
-					-- else
-					-- 	api.nvim_win_set_cursor(0, {row+i-1, inner_end-1})
-					-- end
+					-- This snippet here can be used to replace the whole thing. For fully resolving snippets later.
+					-- api.nvim_win_set_cursor(0, {row+i-1, col})
+					-- api.nvim_set_current_line(line:sub(1, col)..replacement_text..line:sub(finish+1))
+					-- api.nvim_win_set_cursor(0, {row+i-1, col+#inner})
+
 					return
 				end
 			end
+			-- If we don't find our marker, then we abort.
 			R.aborted = true
 			return true
 		end;
