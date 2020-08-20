@@ -270,6 +270,15 @@ local function parse_snippet(body)
 			end
 		end
 
+		local order
+		if var.id then
+			order = var.id
+		elseif not var.id and var.transform then
+			order = math.huge
+		else
+			order = -1
+		end
+
 		R[#R+1] = U.structure_variable(
 			(var.id or 0) > 0,
 			var.id,
@@ -277,7 +286,7 @@ local function parse_snippet(body)
 			-- TODO:
 			--  Keep negative ordering for variables with no id? And is -1 fine?
 			--    - ashkan, Thu 20 Aug 2020 04:18:25 PM JST
-			var.id or -1,
+			order,
 			var.transform
 		)
 	end
