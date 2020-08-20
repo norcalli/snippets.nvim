@@ -149,7 +149,7 @@ local function entrypoint(structure)
 	end
 
 	local function user_input()
-		return concat(api.nvim_buf_get_lines(input_buf, 0, -1, false))
+		return concat(api.nvim_buf_get_lines(input_buf, 0, -1, false), '\n')
 	end
 
 	local function cleanup()
