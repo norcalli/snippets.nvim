@@ -274,6 +274,21 @@ require'snippets'.snippets = {
 }
 ```
 
+# Advanced
+
+The actual thing which controls the user experience (UX) of asking for input and advancing the snippet
+is called an `inserter` by me (because it inserts text by the end if the snippet completes).
+
+If you want to use an alternative UX to the default one, you can use, for instance:
+
+```lua
+require'snippets'.set_ux(require'snippets.inserters.vim_input')
+```
+
+I personally like this one. It's the simplest code and pretty straightforward. Give it a shot or
+help me write better inserters or write your own by studying the files. The default inserter is
+text\_markers.
+
 # TODO (because this is considered beta-level software)
 
 - Document the utilities further.
@@ -281,7 +296,7 @@ require'snippets'.snippets = {
 - Handle consistency across undo points.
   - Specifically, I need to be able to record an undo point at the right place
   right before a snippet is expanded and then potentially delete the
-  active_snippet when an undo is called because we can't guarantee that a snippet
+  active\_snippet when an undo is called because we can't guarantee that a snippet
   will ever terminate then.
   - I could potentially then switch to a stack model of pushing new snippets so you could
   do multiple snippets at a time.

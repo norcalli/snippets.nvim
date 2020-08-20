@@ -178,9 +178,16 @@ local example_keymap = {
 	};
 }
 
+local function set_inserter(new_ux)
+	ux = new_ux
+end
+
 return setmetatable({
 	ERRORS = ERRORS;
 	debug = U.debug;
+
+	set_ux = set_inserter;
+	set_inserter = set_inserter;
 
 	-- The core mechanism.
 	expand_at_cursor = expand_at_cursor;
