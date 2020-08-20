@@ -1,5 +1,7 @@
 # snippets.nvim
 
+Check the [Wiki](https://github.com/norcalli/snippets.nvim/wiki) for examples and contribute your own!
+
 # Installation
 
 `Plug norcalli/snippets.nvim`
