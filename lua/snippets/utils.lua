@@ -61,14 +61,10 @@ end
 
 local function lowest_id(s)
   assert(U.is_snippet(s))
-  local id
+  local id = 0
   for i, v in ipairs(s) do
     if U.is_variable(v) then
-      if id and v.id then
-        id = min(v.id, id)
-      else
-        id = v.id
-      end
+      id = min(v.id or id, id)
     end
   end
   if id and id >= 0 then
