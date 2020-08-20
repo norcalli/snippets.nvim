@@ -30,9 +30,9 @@ local function set_internal_state(is_internal)
 			local res = {}
 			for i = 1, select("#", ...) do
 				local v = select(i, ...)
-				table.insert(res, inspect(v, {newline='';indent=''}))
+				insert(res, inspect(v, {newline='';indent=''}))
 			end
-			print(table.concat(res, ' '))
+			print(concat(res, ' '))
 			return ...
 		end
 		LOG_INTERNAL = D
@@ -66,10 +66,10 @@ local variable_mt = {}
 
 local function structure_variable(is_input, variable_name, default_value, evaluation_order, transform)
 	validate {
+		is_input = { is_input, 'b' };
 		variable_name = { variable_name, {'n', 's'}, true };
 		default_value = { default_value, {'s', 'c'}; true };
 		evaluation_order = { evaluation_order, 'n' };
-		is_input = { is_input, 'b' };
 		transform = { transform, 'c', true };
 	}
 	if is_input then
@@ -368,6 +368,18 @@ local function find_sub(s, replacement, pattern, start, special)
 	end
 	return s
 end
+
+-- local function make_snippet_into_placeholder_function(s)
+--   local evaluator = evaluate_snippet(s)
+--   return function(context)
+--     local inputs = {}
+--     for i, v in ipairs(evaluator.inputs) do
+--       -- TODO(ashkan, Tue 18 Aug 2020 09:37:37 AM JST) ignore the v.default here?
+--       inputs[i] = context[v.id]
+--     end
+--     return concat(evaluator.evaluate_structure(inputs))
+--   end
+-- end
 
 return {
 	debug = function(v)

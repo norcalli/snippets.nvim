@@ -20,6 +20,7 @@ local parser = require 'snippets.parser'
 local ux = require 'snippets.inserters.text_markers'
 -- local ux = require 'snippets.inserters.vim_input'
 local U = require 'snippets.common'
+local nvim = require 'snippets.nvim'
 local api = vim.api
 local deepcopy = vim.deepcopy
 local format = string.format
@@ -31,9 +32,13 @@ local active_snippet
 local function validate_snippet(structure)
 	local S = {}
 	for i, part in ipairs(structure) do
+		-- -- Clean up any empty strings.
+		-- if part ~= '' then
+		-- 	S[#S+1] = U.normalize_structure_component(part)
+		-- end
 		S[i] = U.normalize_structure_component(part)
 	end
-	return S
+	return U.make_snippet(S)
 end
 
 local ERRORS = {
@@ -58,7 +63,9 @@ local function advance_snippet(offset)
 	return result
 end
 
+-- Lookup the snippet.
 local function lookup_snippet(ft, word)
+	-- Check the _global keyword as a fallback for non-filetype specific keys.
 	for _, lutname in ipairs{ft, "_global"} do
 		local lut = snippets[lutname]
 		if lut then
@@ -78,83 +85,86 @@ local function lookup_snippet(ft, word)
 	end
 end
 
+local function line_to_cursor()
+	local row, col = unpack(api.nvim_win_get_cursor(0))
+	local line = api.nvim_get_current_line()
+	return line:sub(1, col)
+end
+
+local function word_at_cursor(pattern)
+	return line_to_cursor():match((pattern or "%S+").."$")
+end
+
+local function lookup_snippet_at_cursor(pattern)
+	local ft = nvim.bo.filetype
+	local word = word_at_cursor(pattern)
+	return word, lookup_snippet(ft, word)
+end
+
 -- TODO(ashkan): if someone undos, the active_snippet has to be erased...?
-local function expand_at_cursor(snippet, expected_word)
+-- Only one of pattern or expected_word should be specified.
+--   expected_word will be used if present (even if pattern is passed).
+local function expand_at_cursor(snippet, expected_word, pattern)
 	if active_snippet then
-		U.LOG_INTERNAL("Snippet is already active")
 		return
 	end
 	local is_anonymous = snippet ~= nil
 
-	-- If it's anonymous, you can insert as is and handle deletion yourself,
-	-- or pass in the word to replace.
+	-- If it's anonymous, you can insert as is and handle deletion yourself, or
+	-- pass in the word to replace.
 	if is_anonymous then
 		expected_word = expected_word or ""
 	end
 
 	local row, col = unpack(api.nvim_win_get_cursor(0))
 	local line = api.nvim_get_current_line()
-	-- TODO(ashkan): vim.region?
-	-- unicode... multibyte...
-	-- local col = vim.str_utfindex(line, col)
 
 	-- Check if the expected word matches ("" doesn't work with :sub(-#word)).
 	if expected_word and expected_word ~= '' and line:sub(-#expected_word) ~= expected_word then
 		return
 	end
-	local ft = vim.bo.filetype
-	local word = expected_word or line:sub(1, col):match("%S+$")
-	U.LOG_INTERNAL("expand_at_cursor: filetype,cword=", ft, word)
-	-- Lookup the snippet.
-	-- Check the _global keyword as a fallback for non-filetype specific keys..
-	U.LOG_INTERNAL("Snippets", snippets)
+	local ft = nvim.bo.filetype
+	local word = expected_word or line:sub(1, col):match((pattern or "%S+").."$")
 
-	local snippet_name
 	if is_anonymous then
 		if type(snippet) == 'string' then
 			snippet = assert(parser.parse_snippet(snippet, nil, ft..'.'..word))
 		end
 		snippet = U.make_snippet(snippet)
-		snippet_name = ("anonymous|snippet=%s|word=%s"):format(snippet or "?", expected_word or "")
 	else
 		snippet = lookup_snippet(ft, word)
-		snippet_name = ("%s|%s"):format(ft, word)
 	end
-	U.LOG_INTERNAL("found snippet:", snippet)
 
-	if snippet then
-		-- assert(type(snippet) == 'table', "snippet passed must be a table")
-		if not U.is_snippet(snippet) then
-			error("not a snippet: "..vim.inspect(snippet))
-		end
-		local structure = validate_snippet(snippet)
+	if not snippet then
+		return false
+	end
+	if not U.is_snippet(snippet) then
+		error("Not a snippet: "..vim.inspect(snippet))
+	end
+	local structure = validate_snippet(snippet)
+	if word ~= '' then
 		api.nvim_win_set_cursor(0, {row, col-#word})
 		api.nvim_set_current_line(line:sub(1, col-#word)..line:sub(col+1))
-		-- By the end of insertion, the position of the cursor should be
-		active_snippet = ux(structure)
-		-- After insertion we need to start advancing the snippet
-		-- - If there's nothing to advance, we should jump to the $0.
-		-- - If there is no $0 in the structure/variables, we should
-		-- jump to the end of insertion.
-		advance_snippet(1)
-		return true
 	end
-	return false
+	-- By the end of insertion, the position of the cursor should be
+	active_snippet = ux(structure)
+	-- After insertion we need to start advancing the snippet
+	-- - If there's nothing to advance, we should jump to the $0.
+	-- - If there is no $0 in the structure/variables, we should
+	--   jump to the end of insertion.
+	advance_snippet(1)
+	return true
 end
 
-local function expand_or_advance(offset)
-	if active_snippet then
-		local result = advance_snippet(offset or 1)
-		U.LOG_INTERNAL("expand_or_advance: advance", result)
-		if result == ERRORS.ABORTED then
-			return expand_at_cursor()
-		elseif result == ERRORS.NONE then
-			return true
-		else
-			error("Unreachable")
-		end
+local function expand_or_advance(offset, ...)
+	if advance_snippet(offset or 1) == 0 then
+		return true
 	end
-	return expand_at_cursor()
+	return expand_at_cursor(...)
+end
+
+local function has_active_snippet()
+	return active_snippet ~= nil
 end
 
 local example_keymap = {
@@ -169,12 +179,23 @@ local example_keymap = {
 }
 
 return setmetatable({
+	ERRORS = ERRORS;
+	debug = U.debug;
+
+	-- The core mechanism.
 	expand_at_cursor = expand_at_cursor;
 	expand_or_advance = expand_or_advance;
 	advance_snippet = advance_snippet;
-	mappings = example_keymap;
-	debug = U.debug;
+
+	-- Convenience functions for people doing advanced things.
+	lookup_snippet = lookup_snippet;
+	has_active_snippet = has_active_snippet;
+	lookup_snippet_at_cursor = lookup_snippet_at_cursor;
+
+	-- Alias
 	u = require 'snippets.utils';
+
+	mappings = example_keymap;
 	use_suggested_mappings = function(buffer_local)
 		for k, v in pairs(example_keymap) do
 			local mode = k:sub(1,1)

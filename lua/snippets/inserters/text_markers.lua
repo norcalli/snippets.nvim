@@ -21,15 +21,22 @@
 -- 3. Substitute the text at that marker with the placeholder, if any.
 -- 4. Allow switching to the next marker or undoing and going back to the previous.
 -- 5. Repeat 2-4 until no more markers.
+
 -- TODO(ashkan): bounds check to avoid going to markers which are from previous insertions or something like that?
-local format = string.format
-local api = vim.api
+
 local splitter = require 'snippets.splitter'
 local parser = require 'snippets.parser'
 local U = require 'snippets.common'
+local nvim = require 'snippets.nvim'
+local vim = vim
+local api = vim.api
 local insert = table.insert
 local concat = table.concat
-local inspect = vim.inspect
+local format = string.format
+local min = math.min
+local max = math.max
+local remove = table.remove
+local nvim_command = api.nvim_command
 
 local marker_with_placeholder_format = "<`{%d:%s}`>"
 local replacement_marker_format = "<`%d`>"
@@ -74,8 +81,8 @@ local function entrypoint(structure)
 	end
 
 	local undo_points = {}
-	vim.cmd "let &undolevels = &undolevels"
-	insert(undo_points, vim.fn.changenr())
+	nvim_command "let &undolevels = &undolevels"
+	insert(undo_points, nvim.fn.changenr())
 
 	U.LOG_INTERNAL('body', body)
 	local row, col = unpack(api.nvim_win_get_cursor(0))
@@ -95,16 +102,16 @@ local function entrypoint(structure)
 		-- jump to the end of insertion.
 		advance = function(offset)
 			offset = offset or 1
-			current_index = math.max(math.min(current_index + offset, #evaluator.inputs + 1), 0)
+			current_index = max(min(current_index + offset, #evaluator.inputs + 1), 0)
 			if offset > 0 then
 				-- Don't set an undo point for $0
 				if current_index <= #evaluator.inputs then
 					-- Force an undopoint
-					vim.cmd "let &undolevels = &undolevels"
-					insert(undo_points, vim.fn.changenr())
+					nvim_command "let &undolevels = &undolevels"
+					insert(undo_points, nvim.fn.changenr())
 				end
 			else
-				vim.cmd("undo "..(table.remove(undo_points) - 1))
+				nvim_command("undo "..(remove(undo_points) - 1))
 			end
 			if current_index == 0 then
 				R.aborted = true

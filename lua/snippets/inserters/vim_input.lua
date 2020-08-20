@@ -19,6 +19,7 @@ local vim = vim
 local api = vim.api
 local U = require 'snippets.common'
 local splitter = require 'splitter'
+local nvim = require 'snippets.nvim'
 local format = string.format
 local concat = table.concat
 local insert = table.insert
@@ -107,7 +108,7 @@ local function entrypoint(structure)
 
       local ok = pcall(function()
         vim.cmd "mode"
-        local value = vim.fn.input(format("%s\n%s> ", render_input_display(), current_input_id), current_input_placeholder)
+        local value = nvim.fn.input(format("%s\n%s> ", render_input_display(), current_input_id), current_input_placeholder)
         resolved_inputs[current_index] = value
       end)
       return R.advance(ok and 1 or -1)

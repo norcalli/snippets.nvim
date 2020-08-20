@@ -17,6 +17,7 @@
 
 local U = require 'snippets.common'
 local parser = require 'snippets.parser'
+local nvim = require 'snippets.nvim'
 local vim = vim
 local api = vim.api
 local nvim_get_current_line = api.nvim_get_current_line
@@ -31,11 +32,12 @@ local function get_line_indent()
   return nvim_get_current_line():match("^%s+") or ""
 end
 
+-- Only works with prefix comments.
 local function get_line_comment()
-  local cms = vim.bo.commentstring
+  local cms = nvim.bo.commentstring
   -- This whole pesc dance is a bummer.
   local pattern = "^(%s*)"..
-    (U.find_sub(vim.pesc((U.find_sub(cms, "\0", "%s", 1, true))), "(%s*).*", "\0", 1, true))
+	  (U.find_sub(vim.pesc((U.find_sub(cms, "\0", "%s", 1, true))), "(%s*).*", "\0", 1, true))
   local pre_ws, inner_ws = nvim_get_current_line():match(pattern)
   if pre_ws then
     return pre_ws..cms:format("")..inner_ws
@@ -59,7 +61,7 @@ local function into_snippet(s)
   return U.make_snippet(s)
 end
 
-local function lowest_id(s)
+local function lowest_variable_id(s)
   assert(U.is_snippet(s))
   local id = 0
   for i, v in ipairs(s) do
@@ -68,16 +70,28 @@ local function lowest_id(s)
     end
   end
   if id and id >= 0 then
-    return -1
+    return 0
   end
-  return id or -1
+  return id or 0
+end
+
+local function iterate_variables_by_id(s, id, fn)
+  local S = into_snippet(s)
+  local count = 0
+  for i, v in ipairs(S) do
+    if U.is_variable(v) and v.id == id then
+      count = count + 1
+      S[i] = fn(v, count, i) or v
+    end
+  end
+  return S
 end
 
 local function prefix_new_lines_with_function(s, fn)
   local S = into_snippet(s)
   local prefix_var = U.make_preorder_function_component(fn)
   -- Use a unique negative number so it's evaluated first.
-  prefix_var.id = lowest_id(S) - 1
+  prefix_var.id = lowest_variable_id(S) - 1
   local R = {}
   for _, v in ipairs(S) do
     if type(v) == 'string' then
@@ -118,7 +132,7 @@ end
 local function force_comment(s)
   local function get_comment_prefix()
     -- Add an extra space to it.
-    return vim.bo.commentstring:format(""):gsub("%S$", "%0 ")
+    return nvim.bo.commentstring:format(""):gsub("%S$", "%0 ")
   end
   local S = prefix_new_lines_with_function(s, get_comment_prefix)
   insert(S, 1, U.make_preorder_function_component(function()
@@ -141,12 +155,19 @@ local function match_comment_or_indentation(s)
   end)
 end
 
+local function comment_and_indent(s)
+  return match_indentation(force_comment(s))
+end
+
 return {
   match_indentation = match_indentation;
   match_comment = match_comment;
   force_comment = force_comment;
   match_comment_or_indentation = match_comment_or_indentation;
+  comment_and_indent = comment_and_indent;
   into_snippet = into_snippet;
   lowest_id = lowest_id;
   prefix_new_lines_with_function = prefix_new_lines_with_function;
+  iterate_variables_by_id = iterate_variables_by_id;
 }
+-- vim:noet sw=3 ts=3

@@ -20,6 +20,7 @@ local splitter = require 'snippets.splitter'
 local format = string.format
 local concat = table.concat
 local insert = table.insert
+local char = string.char
 
 local function parse_directives(s)
 	if s:match("^%s*$") then return {} end
@@ -65,11 +66,11 @@ local function find_delimited(body, start, stop, start_pos)
 	end
 end
 
--- TODO(ashkan, 2020-08-19 00:35:42+0900) this is more boardly useful and
--- should be extracted.
+-- TODO:
+--  This is more boardly useful and should be extracted.
+--    - ashkan, Thu 19 Aug 2020 00:35:42 PM JST
 local function find_next_multiple(body, patterns, start_position)
-	-- try to find a new variable to parse out.
-	local next_value
+	local result
 	for i, pattern in ipairs(patterns) do
 		local value
 		if type(pattern) == 'string' then
@@ -80,29 +81,22 @@ local function find_next_multiple(body, patterns, start_position)
 		end
 		if #value > 0 then
 			value.pattern_index = i
-			local new_value
-			if not next_value then
-				new_value = value
-			else
-				-- TODO(ashkan): report which indices.
-				if next_value[1] == value[1] then
-					return nil, "Multiple patterns matched the same thing"
-				end
-				if next_value[1] > value[1] then
-					U.LOG_INTERNAL("preferring", i, "over", next_index)
-					new_value = value
-				end
-			end
-			if new_value then
-				next_value = new_value
+			-- Prefer earlier values.
+			if not result or value[1] < result[1] then
+				result = value
+			elseif value[1] == result[1] then
+				return nil, format("Multiple patterns matched the same position: [%d,%d] & [%d,%d]\n%q vs %q",
+						result[1], result[2], value[1], value[2],
+						body:sub(result[1], result[2]),
+						body:sub(value[1], value[2]))
 			end
 		end
 	end
-	if not next_value then
+	if not result then
 		return
 	end
-	return next_value
-	-- return unpack(next_value)
+	return result
+	-- return unpack(result)
 end
 
 local function find_sub(s, replacement, pattern, start, special)
@@ -119,8 +113,9 @@ end
 --
 -- Example:
 -- parse_snippet("for ${1:i}, ${2:v} in ipairs(${3:t}) do $0 end")
---   == { 'for '; 1; ' '; 2; ' in ipairs('...
+--   == { 'for '; { id = 1; placeholder = "i"; }; ' '; { id = 2; placeholder = "v"; ' in ipairs('...
 local function parse_snippet(body)
+	U.LOG_INTERNAL("Parse Start:", body)
 	local R = {}
 
 	local inner_patterns = {
@@ -131,7 +126,10 @@ local function parse_snippet(body)
 	}
 
 	local function parse_var(body)
-		local next_value = find_next_multiple(body, inner_patterns)
+		local next_value, err = find_next_multiple(body, inner_patterns)
+		if err then
+			error(err)
+		end
 		if not next_value then
 			return
 		end
@@ -155,28 +153,24 @@ local function parse_snippet(body)
 				local kind = directive:sub(1,1)
 				if kind == '=' then
 					var.expression = directive:sub(2)
-					-- local chunk_name = ("snippets[expression id=%s body=%q]"):format(tostring(var_id), body:sub(i1, i2))
-					-- var.expression = U.make_lambda(directive:sub(2), chunk_name)
 				elseif kind == '|' then
 					var.transform = directive:sub(2)
-					-- local chunk_name = ("snippets[transform id=%s body=%q]"):format(tostring(var_id), body:sub(i1, i2))
-					-- var.transform = U.make_lambda(directive:sub(2), chunk_name)
 				elseif kind == ':' then
 					var.placeholder = directive:sub(2)
 				else
-					return nil, ("Invalid snippet component found:\nStart=%d, End=%d, P1=%q, P2=%q, Substring=%q"):format(i1, i2, p1, p2, body:sub(i1, i2))
+					error(("Invalid snippet component found:\nStart=%d, End=%d, P1=%q, P2=%q, Substring=%q"):format(i1, i2, p1, p2, body:sub(i1, i2)))
 				end
 			end
 		end
-		return i1, i2, var
+		return var, i1, i2
 	end
 
-	-- TODO(ashkan): error patterns that we can check which don't show up in here.
-	-- Each pattern should return either 1 or 2 things:
-	-- 1. { variable_id, }
-	-- 2. { variable_id, kind, placeholder, }
-	-- NOTE: Ordering is important!
-	-- If one pattern may contain the other, it should be placed higher up.
+	-- Each pattern should return: `left, right, var` or `nil`
+	-- Where `var` is { id, expression, placeholder, transform }
+	-- NOTE:
+	--  Ordering is deliberate. Patterns which may contain other patterns should
+	--  come sooner (linearized).
+	--    - ashkan, Thu 20 Aug 2020 03:47:25 PM JST
 	local patterns = {
 		function(body, start)
 			local r = find_delimited(body, "${", "}", start)
@@ -184,60 +178,37 @@ local function parse_snippet(body)
 				return
 			end
 			local i1, i2, subnodes = unpack(r)
-			local y = i2
 			local var
 			if not subnodes or #subnodes == 0 then
-				_, _, var = parse_var(body:sub(i1, i2))
+				var = assert(parse_var(body:sub(i1, i2)))
 			else
-				local original_body = body
+				-- Remove the sub-snippets since they cause problems for parse_var
+				-- to detect subsections.
+				-- Replace them backwards so that indices aren't invalidated in the
+				-- process.
 				local removed = {}
-				for i, v in ipairs(subnodes) do
-					local rem = body:sub(v[1], v[2])
-					insert(removed, rem)
-					U.LOG_INTERNAL(i1, i2, #rem, rem)
-					y = y - #rem + 1
-				end
+				local new_i2 = i2
 				for i = #subnodes, 1, -1 do
 					local v = subnodes[i]
-					body = body:sub(1, v[1]-1)..string.char(i)..body:sub(v[2]+1)
+					local text = body:sub(v[1], v[2])
+					removed[i] = text
+					body = body:sub(1, v[1]-1)..char(i)..body:sub(v[2]+1)
+					new_i2 = new_i2 - #text + 1
 				end
-				U.LOG_INTERNAL('body', body)
-				local text = body:sub(i1, y)
-				U.LOG_INTERNAL('text', text)
-				local function reconstitute(x)
+				local text = body:sub(i1, new_i2)
+				local function reconstitute(s)
 					for i, text in ipairs(removed) do
-						x = find_sub(x, text, string.char(i), 1, true)
+						s = find_sub(s, text, char(i), 1, true)
 					end
-					return x
+					return s
 				end
-				_, _, var = parse_var(text)
+				var = assert(parse_var(text))
 				if var.placeholder then var.placeholder = reconstitute(var.placeholder) end
 				if var.expression then var.expression = reconstitute(var.expression) end
 				if var.transform then var.transform = reconstitute(var.transform) end
 			end
-			if var then
-				if var.placeholder then
-					local s = assert(parse_snippet(var.placeholder))
-					if #s == 1 and type(s[1]) == 'string' then
-						var.placeholder = s[1]
-					else
-						local evaluator = U.evaluate_snippet(s)
-						var.placeholder = function(context)
-							local inputs = {}
-							for i, v in ipairs(evaluator.inputs) do
-								-- TODO(ashkan, Tue 18 Aug 2020 09:37:37 AM JST) ignore the v.default here?
-								inputs[i] = context[v.id]
-							end
-							return concat(evaluator.evaluate_structure(inputs))
-						end
-					end
-				end
-				return i1, i2, var
-			end
+			return i1, i2, var
 		end;
-		-- TODO(ashkan): allow an empty value in the :} part or throw an error?
-		-- Pattern for $1, $2, etc..
-		-- "%$(%-?%d+)",
 		function(body, start)
 			local i1, i2, var_id = body:find("%$(%-?%d+)", start)
 			if i1 then
@@ -264,7 +235,9 @@ local function parse_snippet(body)
 
 		assert(not (var.placeholder and var.expression), "Can't define both an expression and placeholder")
 
-		-- TODO(ashkan): disallow placeholder for $0?
+		-- TODO:
+		--  Disallow placeholder for $0 here?
+		--    - ashkan, Thu 20 Aug 2020 04:18:00 PM JST
 
 		if var.expression then
 			local chunk_name = ("snippets[expression id=%s body=%q]"):format(tostring(var.id), body:sub(i1, i2))
@@ -274,12 +247,36 @@ local function parse_snippet(body)
 			local chunk_name = ("snippets[transform id=%s body=%q]"):format(tostring(var.id), body:sub(i1, i2))
 			var.transform = U.make_lambda(var.transform, chunk_name)
 		end
+		-- TODO:
+		--  Keep this here or move it into a companion function that replaces
+		--  placeholders optionally with snippets? That way it could be used on
+		--  the results of placeholders which return functions. I'm not sure how
+		--  much to do automatically here.
+		--    - ashkan, Thu 20 Aug 2020 04:12:01 PM JST
+		if var.placeholder then
+			local s = assert(parse_snippet(var.placeholder))
+			if #s == 1 and type(s[1]) == 'string' then
+				var.placeholder = s[1]
+			else
+				local evaluator = U.evaluate_snippet(s)
+				var.placeholder = function(context)
+					local inputs = {}
+					for i, v in ipairs(evaluator.inputs) do
+						-- TODO(ashkan, Tue 18 Aug 2020 09:37:37 AM JST) ignore the v.default here?
+						inputs[i] = context[v.id]
+					end
+					return concat(evaluator.evaluate_structure(inputs))
+				end
+			end
+		end
 
 		R[#R+1] = U.structure_variable(
 			(var.id or 0) > 0,
 			var.id,
 			var.placeholder or var.expression or "",
-			-- TODO(ashkan, Tue 18 Aug 2020 09:30:38 AM JST) negative value order?
+			-- TODO:
+			--  Keep negative ordering for variables with no id? And is -1 fine?
+			--    - ashkan, Thu 20 Aug 2020 04:18:25 PM JST
 			var.id or -1,
 			var.transform
 		)
