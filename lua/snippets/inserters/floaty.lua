@@ -23,6 +23,10 @@ local format = string.format
 local concat = table.concat
 local insert = table.insert
 
+local M = {
+	input_prompt = "Input $%d>";
+}
+
 local function floaty_popup(opts)
 	opts = opts or {}
 	local buf = api.nvim_create_buf(false, true)
@@ -144,7 +148,7 @@ local function entrypoint(structure)
 			end
 		end)
 		local lines = vim.split(concat(evaluator.evaluate_structure(inputs)), "\n", true)
-		lines[preview_opts.height] = format("$%d:", current_index)
+		lines[preview_opts.height] = M.input_prompt:format(current_index)
 		api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
 	end
 
@@ -230,6 +234,8 @@ local function entrypoint(structure)
 	return R
 end
 
-return entrypoint
+return setmetatable(M, {
+	__call = function(_, ...) return entrypoint(...) end;
+})
 -- vim:noet sw=3 ts=3
 
