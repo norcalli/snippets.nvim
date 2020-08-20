@@ -18,7 +18,6 @@
 local vim = vim
 local api = vim.api
 local U = require 'snippets.common'
-local splitter = require 'splitter'
 local nvim = require 'snippets.nvim'
 local format = string.format
 local concat = table.concat
@@ -51,7 +50,7 @@ local function entrypoint(structure)
     local c_line_start = tail[1]:sub(1, col)
     local c_line_end = tail[1]:sub(col+1)
 
-    local lines = splitter("\n", true).collect(body)
+    local lines = vim.split(body, "\n", true)
     -- local first_line_length = #lines[1]
     lines[1] = c_line_start..lines[1]
     lines[#lines] = lines[#lines]..c_line_end
