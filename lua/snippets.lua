@@ -17,8 +17,8 @@
 
 local vim = vim
 local parser = require 'snippets.parser'
-local ux = require 'snippets.inserters.text_markers'
--- local ux = require 'snippets.inserters.vim_input'
+-- local ux = require 'snippets.inserters.text_markers'
+local ux = require 'snippets.inserters.floaty'
 local U = require 'snippets.common'
 local nvim = require 'snippets.nvim'
 local api = vim.api
