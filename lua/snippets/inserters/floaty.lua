@@ -24,7 +24,8 @@ local concat = table.concat
 local insert = table.insert
 
 local M = {
-	input_prompt = "Input $%s>";
+	input_prompt = " $%s ";
+	-- input_prompt = "Input $%s";
 	current_input_format = "|%s|";
 }
 
@@ -76,6 +77,14 @@ local function to_lines(s)
 	return vim.split(s, '\n', true)
 end
 
+local function center_pad(width, s)
+	local n = #s + 2
+	s = "┤"..s.."├"
+	local left = math.max(math.floor((width - n) / 2), 0)
+	local right = width - n - left
+	return ("─"):rep(left)..s..(("─"):rep(right))
+end
+
 local function entrypoint(structure)
 	local evaluator = U.evaluate_snippet(structure)
 
@@ -95,7 +104,16 @@ local function entrypoint(structure)
 		col = 0;
 		row = 0;
 		width = width;
-		height = #dummy_text + 1;
+		height = #dummy_text;
+	}
+	local header_buf, header_win, header_opts = floaty_popup {
+		relative = 'win';
+		win = start_win;
+		bufpos = {start_pos[1]-1, start_pos[2]};
+		col = 0;
+		row = preview_opts.row + preview_opts.height;
+		width = width;
+		height = 1;
 	}
 	local input_buf, input_win, input_opts = floaty_popup {
 		focusable = true;
@@ -103,7 +121,7 @@ local function entrypoint(structure)
 		win = start_win;
 		bufpos = {start_pos[1]-1, start_pos[2]};
 		col = 0;
-		row = preview_opts.height;
+		row = header_opts.row + header_opts.height;
 		width = preview_opts.width;
 		height = 3;
 	}
@@ -161,7 +179,7 @@ local function entrypoint(structure)
 	-- end)
 	local current_index = 0
 
-	local function update_preview(I)
+	local function update_preview(I, force)
 		local inputs = evaluator.evaluate_defaults(I or resolved_inputs, function(var)
 			if type(var.default) == 'string' then
 				return format("${%s:%s}", var.id, var.default)
@@ -170,19 +188,20 @@ local function entrypoint(structure)
 			end
 		end)
 		local lines = to_lines(evaluator.evaluate_structure(inputs))
-		lines[#lines+1] = M.input_prompt:format(current_index)
 		local new_width = max_line_length(lines)
 		local new_height = #lines
-		local config_changed = false
+		local config_changed = force or false
 		if new_width > preview_opts.width then
 			config_changed = true
 			preview_opts.width = new_width
 			input_opts.width = new_width
+			header_opts.width = new_width
 		end
 		if new_height ~= preview_opts.height then
 			config_changed = true
 			preview_opts.height = new_height
-			input_opts.row = preview_opts.height
+			header_opts.row = preview_opts.row + preview_opts.height
+			input_opts.row = header_opts.row + header_opts.height
 			-- TODO:
 			--  calculate input height too.
 			--    - ashkan, Sun 23 Aug 2020 07:33:28 PM JST
@@ -191,7 +210,12 @@ local function entrypoint(structure)
 		if config_changed then
 			api.nvim_win_set_config(preview_win, preview_opts)
 			api.nvim_win_set_config(input_win, input_opts)
+			api.nvim_win_set_config(header_win, header_opts)
 		end
+		local header_lines = {
+			center_pad(header_opts.width, M.input_prompt:format(current_index))
+		}
+		api.nvim_buf_set_lines(header_buf, 0, -1, false, header_lines)
 		api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
 	end
 
@@ -201,6 +225,7 @@ local function entrypoint(structure)
 
 	local function cleanup()
 		api.nvim_win_close(preview_win, true)
+		api.nvim_win_close(header_win, true)
 		api.nvim_win_close(input_win, true)
 		api.nvim_set_current_win(start_win)
 		api.nvim_win_set_cursor(start_win, start_pos)
