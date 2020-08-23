@@ -230,7 +230,7 @@ local function entrypoint(structure)
 		local new_width = math.max(max_line_length(lines), 10)
 		local new_height = #lines
 		local config_changed = force or false
-		if new_width > preview_opts.width then
+		if new_width ~= preview_opts.width then
 			config_changed = true
 			preview_opts.width = new_width
 			input_opts.width = new_width
