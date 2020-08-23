@@ -251,6 +251,10 @@ local function entrypoint(structure)
 		api.nvim_buf_set_lines(header_buf, 0, -1, false, header_lines)
 		api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
 		if current_region[1] then
+			-- TODO:
+			--  Pick a smarter region?
+			--    - ashkan, Sun 23 Aug 2020 09:16:14 PM JST
+			api.nvim_buf_clear_namespace(preview_buf, ns, 0, -1)
 			local r1, c1, r2, c2 = current_region[1][1], current_region[1][2], current_region[2][1], current_region[2][2]
 			if r1 == r2 then
 				api.nvim_buf_add_highlight(preview_buf, ns, M.highlight, r1, c1, c2)
