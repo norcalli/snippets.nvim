@@ -70,10 +70,10 @@ local function lowest_variable_id(s)
       id = min(v.id or id, id)
     end
   end
-  if id and id >= 0 then
+  if id >= 0 then
     return 0
   end
-  return id or 0
+  return id
 end
 
 local function iterate_variables_by_id(s, id, fn)

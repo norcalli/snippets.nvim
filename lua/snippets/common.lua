@@ -54,15 +54,32 @@ local function nil_if_empty(s)
 	return s
 end
 
-local snippet_mt = {}
+local function stringify_variable(v)
+	return format("${%s%s%s}", v.id or "", v.default and "="..tostring(v.default) or "", v.transform and "|" or "")
+end
+
+local variable_mt = {
+	__tostring = stringify_variable;
+}
+
+local snippet_mt = {
+	__tostring = function(t)
+		local T = {}
+		for i, v in ipairs(t) do
+			if type(v) ~= 'string' then
+				v = stringify_variable(v)
+			end
+			T[i] = v
+		end
+		return concat(T)
+	end;
+}
 
 local function is_snippet(v)
 	if type(v) == 'table' then
 		return getmetatable(v) == snippet_mt
 	end
 end
-
-local variable_mt = {}
 
 local function structure_variable(is_input, variable_name, default_value, evaluation_order, transform)
 	validate {
@@ -84,9 +101,18 @@ local function structure_variable(is_input, variable_name, default_value, evalua
 	}, variable_mt)
 end
 
+local function structure_matches_variable(v)
+	return v.order and (v.id or v.default or v.is_input or v.transform) ~= nil
+end
+
 local function is_variable(v)
 	if type(v) == 'table' then
-		return getmetatable(v) == variable_mt
+		if getmetatable(v) == variable_mt then
+			return true
+		elseif structure_matches_variable(v) then
+			setmetatable(v, variable_mt)
+			return true
+		end
 	end
 end
 
