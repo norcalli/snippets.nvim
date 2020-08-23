@@ -45,12 +45,12 @@ local function floaty_popup(opts)
 		height = opts.height or floor(ui_min_height * 50 / 100);
 		win = opts.win;
 		bufpos = opts.bufpos;
+		col = opts.col;
+		row = opts.row;
 		anchor = 'NW';
 		style = 'minimal';
 		focusable = opts.focusable or false;
 	}
-	O.col = opts.col
-	O.row = opts.row
 	-- O.col = opts.col or floor((ui_min_width - O.width) / 2)
 	-- O.row = opts.row or floor((ui_min_height - O.height) / 2)
 	win = api.nvim_open_win(buf, 0, O)
@@ -60,16 +60,21 @@ local function floaty_popup(opts)
 	return buf, win, O
 end
 
+local function max_line_length(lines)
+	local width = 0
+	for _, line in ipairs(lines) do
+		width = math.max(#line, width)
+	end
+	return width
+end
+
 local function entrypoint(structure)
 	local evaluator = U.evaluate_snippet(structure)
 
 	local ft = nvim.bo.filetype
 
-	local width = 0
 	local dummy_text = vim.split(concat(evaluator.evaluate_structure(evaluator.evaluate_defaults({}, function() return (" "):rep(15) end))), '\n', true)
-	for _, line in ipairs(dummy_text) do
-		width = math.max(#line, width)
-	end
+	local width = max_line_length(dummy_text)
 
 	local start_win = api.nvim_get_current_win()
 	local start_buf = api.nvim_get_current_buf()
@@ -77,8 +82,9 @@ local function entrypoint(structure)
 	local preview_buf, preview_win, preview_opts = floaty_popup {
 		relative = 'win';
 		win = start_win;
-		col = start_pos[2];
-		row = start_pos[1] - 1;
+		bufpos = start_pos;
+		col = 0;
+		row = -1;
 		width = width;
 		height = #dummy_text + 1;
 	}
@@ -86,8 +92,9 @@ local function entrypoint(structure)
 		focusable = true;
 		relative = 'win';
 		win = start_win;
-		col = start_pos[2];
-		row = start_pos[1] + preview_opts.height - 1;
+		bufpos = start_pos;
+		col = 0;
+		row = preview_opts.height - 1;
 		width = preview_opts.width;
 		height = 3;
 	}
@@ -108,13 +115,14 @@ local function entrypoint(structure)
 			end)
 			cursor_offset[2] = cursor_offset[2] + #tail
 		end
+
 		local body = concat(S)
 		U.LOG_INTERNAL("set_text", body)
 		assert(type(body) == 'string')
 		local R = {}
 
 		local row, col = unpack(start_pos)
-		local tail = api.nvim_buf_get_lines(start_buf, row-1, -1, false)
+		local tail = api.nvim_buf_get_lines(start_buf, row-1, row, false)
 		-- tail[1] = tail[1] or ""
 		local c_line_start = tail[1]:sub(1, col)
 		local c_line_end = tail[1]:sub(col+1)
@@ -149,6 +157,13 @@ local function entrypoint(structure)
 		end)
 		local lines = vim.split(concat(evaluator.evaluate_structure(inputs)), "\n", true)
 		lines[preview_opts.height] = M.input_prompt:format(current_index)
+		local new_width = max_line_length(lines)
+		if new_width > preview_opts.width then
+			preview_opts.width = new_width
+			api.nvim_win_set_config(preview_win, preview_opts)
+			input_opts.width = new_width
+			api.nvim_win_set_config(input_win, input_opts)
+		end
 		api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
 	end
 
