@@ -68,12 +68,20 @@ local function max_line_length(lines)
 	return width
 end
 
+local function to_lines(s)
+	if type(s) == 'table' then
+		return to_lines(concat(s))
+	end
+	return vim.split(s, '\n', true)
+end
+
 local function entrypoint(structure)
 	local evaluator = U.evaluate_snippet(structure)
 
 	local ft = nvim.bo.filetype
 
-	local dummy_text = vim.split(concat(evaluator.evaluate_structure(evaluator.evaluate_defaults({}, function() return (" "):rep(15) end))), '\n', true)
+	local dummy_text = vim.split(concat(evaluator.evaluate_structure(evaluator.evaluate_inputs{})), '\n', true)
+	-- local dummy_text = vim.split(concat(evaluator.evaluate_structure(evaluator.evaluate_defaults({}, function() return (" "):rep(15) end))), '\n', true)
 	local width = max_line_length(dummy_text)
 
 	local start_win = api.nvim_get_current_win()
@@ -82,9 +90,9 @@ local function entrypoint(structure)
 	local preview_buf, preview_win, preview_opts = floaty_popup {
 		relative = 'win';
 		win = start_win;
-		bufpos = start_pos;
+		bufpos = {start_pos[1]-1, start_pos[2]};
 		col = 0;
-		row = -1;
+		row = 0;
 		width = width;
 		height = #dummy_text + 1;
 	}
@@ -92,9 +100,9 @@ local function entrypoint(structure)
 		focusable = true;
 		relative = 'win';
 		win = start_win;
-		bufpos = start_pos;
+		bufpos = {start_pos[1]-1, start_pos[2]};
 		col = 0;
-		row = preview_opts.height - 1;
+		row = preview_opts.height;
 		width = preview_opts.width;
 		height = 3;
 	}
@@ -226,7 +234,7 @@ local function entrypoint(structure)
 				return true
 			end
 
-			if current_index > 1 then
+			if offset > 0 and current_index > 1 then
 				resolved_inputs[current_index - 1] = user_input()
 			end
 
