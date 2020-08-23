@@ -221,12 +221,16 @@ return setmetatable({
 		U.LOG_INTERNAL("index", k, v)
 		if k == 'snippets' then
 			return deepcopy(snippets)
+		elseif k == 'ux' then
+			return ux
 		end
 	end;
 	__newindex = function(t, k, v)
 		U.LOG_INTERNAL("newindex", k, v)
 		if k == 'snippets' then
 			snippets = deepcopy(v)
+		elseif k == 'ux' then
+			return ux
 		end
 	end;
 })
