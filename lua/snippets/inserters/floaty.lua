@@ -24,10 +24,16 @@ local concat = table.concat
 local insert = table.insert
 
 local M = {
-	input_prompt = " $%s ";
+	input_prompt = "┤ $%s ├";
 	-- input_prompt = "Input $%s";
-	current_input_format = "|%s|";
+	current_input_format = "%s";
+	-- current_input_format = "|%s|";
+	highlight = 'Question';
 }
+
+local function char_length(s)
+	return vim.str_utfindex(s)
+end
 
 local function floaty_popup(opts)
 	opts = opts or {}
@@ -78,12 +84,29 @@ local function to_lines(s)
 end
 
 local function center_pad(width, s)
-	local n = #s + 2
-	s = "┤"..s.."├"
+	-- s = "┤"..s.."├"
+	local n = char_length(s)
 	local left = math.max(math.floor((width - n) / 2), 0)
 	local right = width - n - left
 	return ("─"):rep(left)..s..(("─"):rep(right))
 end
+
+local function lines_to_position(lines)
+	return {
+		math.max(#lines - 1, 0),
+		#lines[#lines]
+		-- math.max(char_length(lines[#lines]) - 1, 0)
+	}
+end
+
+local function position_add(a, b)
+	return {
+		a[1] + b[1],
+		a[2] + b[2]
+	}
+end
+
+local ns = api.nvim_create_namespace("snippets-floaty")
 
 local function entrypoint(structure)
 	local evaluator = U.evaluate_snippet(structure)
@@ -180,14 +203,24 @@ local function entrypoint(structure)
 	local current_index = 0
 
 	local function update_preview(I, force)
-		local inputs = evaluator.evaluate_defaults(I or resolved_inputs, function(var)
+		I = I or resolved_inputs
+		local inputs = evaluator.evaluate_defaults(I, function(var)
 			if type(var.default) == 'string' then
 				return format("${%s:%s}", var.id, var.default)
 			else
 				return format("${%s}", var.id)
 			end
 		end)
-		local lines = to_lines(evaluator.evaluate_structure(inputs))
+		local structure = evaluator.evaluate_structure(inputs)
+		local current_region = {}
+		if evaluator.inputs[current_index] then
+			local first_index = evaluator.inputs[current_index].first_index
+			local input_prefix = {unpack(structure, 1, first_index - 1)}
+			current_region[1] = lines_to_position(to_lines(input_prefix))
+			current_region[2] = lines_to_position(to_lines(structure[first_index]))
+			current_region[2] = position_add(current_region[1], current_region[2])
+		end
+		local lines = to_lines(structure)
 		local new_width = max_line_length(lines)
 		local new_height = #lines
 		local config_changed = force or false
@@ -217,6 +250,18 @@ local function entrypoint(structure)
 		}
 		api.nvim_buf_set_lines(header_buf, 0, -1, false, header_lines)
 		api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
+		if current_region[1] then
+			local r1, c1, r2, c2 = current_region[1][1], current_region[1][2], current_region[2][1], current_region[2][2]
+			if r1 == r2 then
+				api.nvim_buf_add_highlight(preview_buf, ns, M.highlight, r1, c1, c2)
+			else
+				api.nvim_buf_add_highlight(preview_buf, ns, M.highlight, r1, c1, -1)
+				for i = r1 + 1, r2 - 1 do
+					api.nvim_buf_add_highlight(preview_buf, ns, M.highlight, i, 0, -1)
+				end
+				api.nvim_buf_add_highlight(preview_buf, ns, M.highlight, r2, 0, c2)
+			end
+		end
 	end
 
 	local function user_input()
