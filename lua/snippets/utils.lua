@@ -27,6 +27,7 @@ local insert = table.insert
 local min = math.min
 
 local function identity1(x) return x.v end
+local function noop(x) return "" end
 
 local function get_line_indent()
   return nvim_get_current_line():match("^%s+") or ""
@@ -92,7 +93,7 @@ local function prefix_new_lines_with_function(s, fn)
   local prefix_var = U.make_preorder_function_component(fn)
   -- Use a unique negative number so it's evaluated first.
   prefix_var.id = lowest_variable_id(S) - 1
-  local R = {}
+  local R = {U.with_transform(prefix_var, noop)}
   for _, v in ipairs(S) do
     if type(v) == 'string' then
       local lines = vim.split(v, '\n', true)
@@ -169,5 +170,7 @@ return {
   lowest_id = lowest_id;
   prefix_new_lines_with_function = prefix_new_lines_with_function;
   iterate_variables_by_id = iterate_variables_by_id;
+
+  with_transform = U.with_transform;
 }
 -- vim:noet sw=3 ts=3

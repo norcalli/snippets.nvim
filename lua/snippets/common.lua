@@ -102,6 +102,15 @@ local function make_postorder_function_component(fn)
 	return structure_variable(false, nil, nil, math.huge, fn)
 end
 
+local function with_transform(var, transform)
+	return structure_variable(
+		var.is_input,
+		var.id,
+		var.default,
+		var.order,
+		transform)
+end
+
 local function normalize_structure_component(v)
 	if is_normalized_structure_component(v) then
 		return v
@@ -263,7 +272,7 @@ local function evaluate_snippet(structure)
 			-- value for all instances. Further transformations will still
 			-- apply due to the call to evaluate_variable after this branch.
 			if not var.is_input and var.id and not var_dict[var.id] then
-				var_dict[var.id] = evaluate_variable(var, var_dict)
+				var_dict[var.id] = evaluate_variable(with_transform(var, nil), var_dict)
 				LOG_INTERNAL("Updating var dict", var, var_dict[var.id])
 			end
 			LOG_INTERNAL("Var dict", index, var.id and var_dict[var.id], var, var_dict)
@@ -404,6 +413,7 @@ return {
 	normalize_structure_component = normalize_structure_component;
 	evaluate_variable = evaluate_variable;
 	make_snippet = make_snippet;
+	with_transform = with_transform;
 
 	find_sub = find_sub;
 }

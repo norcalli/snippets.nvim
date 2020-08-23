@@ -115,7 +115,7 @@ local function entrypoint(structure)
 
 	local dummy_text = vim.split(concat(evaluator.evaluate_structure(evaluator.evaluate_inputs{})), '\n', true)
 	-- local dummy_text = vim.split(concat(evaluator.evaluate_structure(evaluator.evaluate_defaults({}, function() return (" "):rep(15) end))), '\n', true)
-	local width = max_line_length(dummy_text)
+	local width = math.max(max_line_length(dummy_text), 10)
 
 	local start_win = api.nvim_get_current_win()
 	local start_buf = api.nvim_get_current_buf()
@@ -135,7 +135,7 @@ local function entrypoint(structure)
 		bufpos = {start_pos[1]-1, start_pos[2]};
 		col = 0;
 		row = preview_opts.row + preview_opts.height;
-		width = width;
+		width = preview_opts.width;
 		height = 1;
 	}
 	local input_buf, input_win, input_opts = floaty_popup {
@@ -212,16 +212,22 @@ local function entrypoint(structure)
 			end
 		end)
 		local structure = evaluator.evaluate_structure(inputs)
-		local current_region = {}
+		local current_region
 		if evaluator.inputs[current_index] then
 			local first_index = evaluator.inputs[current_index].first_index
 			local input_prefix = {unpack(structure, 1, first_index - 1)}
-			current_region[1] = lines_to_position(to_lines(input_prefix))
-			current_region[2] = lines_to_position(to_lines(structure[first_index]))
-			current_region[2] = position_add(current_region[1], current_region[2])
+			local p1 = lines_to_position(to_lines(input_prefix))
+			local p2 = lines_to_position(to_lines(structure[first_index]))
+			current_region = {
+				p1,
+				{
+					p2[1] + p1[1],
+					(p2[1] > 0 and 0 or p1[2]) + p2[2],
+				}
+			}
 		end
 		local lines = to_lines(structure)
-		local new_width = max_line_length(lines)
+		local new_width = math.max(max_line_length(lines), 10)
 		local new_height = #lines
 		local config_changed = force or false
 		if new_width > preview_opts.width then
@@ -250,7 +256,7 @@ local function entrypoint(structure)
 		}
 		api.nvim_buf_set_lines(header_buf, 0, -1, false, header_lines)
 		api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
-		if current_region[1] then
+		if current_region then
 			-- TODO:
 			--  Pick a smarter region?
 			--    - ashkan, Sun 23 Aug 2020 09:16:14 PM JST
