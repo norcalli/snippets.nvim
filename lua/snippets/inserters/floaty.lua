@@ -24,7 +24,8 @@ local concat = table.concat
 local insert = table.insert
 
 local M = {
-	input_prompt = "Input $%d>";
+	input_prompt = "Input $%s>";
+	current_input_format = "|%s|";
 }
 
 local function floaty_popup(opts)
@@ -155,21 +156,40 @@ local function entrypoint(structure)
 	end
 
 	local resolved_inputs = {}
+	-- local resolved_inputs = evaluator.evaluate_defaults({}, function(var)
+	-- 	return format("$%d", var.id)
+	-- end)
 	local current_index = 0
 
 	local function update_preview(I)
 		local inputs = evaluator.evaluate_defaults(I or resolved_inputs, function(var)
-			if var.default == "" then
+			if type(var.default) == 'string' then
+				return format("${%s:%s}", var.id, var.default)
+			else
 				return format("${%s}", var.id)
 			end
 		end)
-		local lines = vim.split(concat(evaluator.evaluate_structure(inputs)), "\n", true)
-		lines[preview_opts.height] = M.input_prompt:format(current_index)
+		local lines = to_lines(evaluator.evaluate_structure(inputs))
+		lines[#lines+1] = M.input_prompt:format(current_index)
 		local new_width = max_line_length(lines)
+		local new_height = #lines
+		local config_changed = false
 		if new_width > preview_opts.width then
+			config_changed = true
 			preview_opts.width = new_width
-			api.nvim_win_set_config(preview_win, preview_opts)
 			input_opts.width = new_width
+		end
+		if new_height ~= preview_opts.height then
+			config_changed = true
+			preview_opts.height = new_height
+			input_opts.row = preview_opts.height
+			-- TODO:
+			--  calculate input height too.
+			--    - ashkan, Sun 23 Aug 2020 07:33:28 PM JST
+			-- input_opts.height = input_height
+		end
+		if config_changed then
+			api.nvim_win_set_config(preview_win, preview_opts)
 			api.nvim_win_set_config(input_win, input_opts)
 		end
 		api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
@@ -190,15 +210,12 @@ local function entrypoint(structure)
 
 	api.nvim_buf_attach(input_buf, false, {
 		on_lines = vim.schedule_wrap(function()
-			-- local inputs = evaluator.evaluate_defaults(resolved_inputs, function(var)
-			-- 	if var.default == "" then
-			-- 		return format("${%s}", var.id)
-			-- 	end
-			-- end)
-			-- inputs[current_index] = user_input()
-			-- update_preview(inputs)
-			resolved_inputs[current_index] = user_input()
-			update_preview()
+			local inputs = {}
+			for i, v in ipairs(resolved_inputs) do
+				inputs[i] = v
+			end
+			inputs[current_index] = M.current_input_format:format(user_input())
+			update_preview(inputs)
 		end);
 	})
 
