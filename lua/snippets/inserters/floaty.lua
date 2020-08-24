@@ -22,6 +22,8 @@ local nvim = require 'snippets.nvim'
 local format = string.format
 local concat = table.concat
 local insert = table.insert
+local max = math.max
+local min = math.min
 
 local M = {
 	input_prompt = "┤ $%s ├";
@@ -109,13 +111,15 @@ end
 local ns = api.nvim_create_namespace("snippets-floaty")
 
 local function entrypoint(structure)
+	local window_width = api.nvim_win_get_width(0)
+	local window_height = api.nvim_win_get_height(0)
 	local evaluator = U.evaluate_snippet(structure)
 
 	local ft = nvim.bo.filetype
 
 	local dummy_text = vim.split(concat(evaluator.evaluate_structure(evaluator.evaluate_inputs{})), '\n', true)
 	-- local dummy_text = vim.split(concat(evaluator.evaluate_structure(evaluator.evaluate_defaults({}, function() return (" "):rep(15) end))), '\n', true)
-	local width = math.max(max_line_length(dummy_text), 10)
+	local width = max(max_line_length(dummy_text), 10)
 
 	local start_win = api.nvim_get_current_win()
 	local start_buf = api.nvim_get_current_buf()
@@ -227,8 +231,13 @@ local function entrypoint(structure)
 			}
 		end
 		local lines = to_lines(structure)
-		local new_width = math.max(max_line_length(lines), 10)
+		local new_width = max(max_line_length(lines), 10)
+		if I[current_index] then
+			new_width = max(new_width, max_line_length(to_lines(I[current_index])) + 5)
+		end
+		new_width = min(new_width, window_width)
 		local new_height = #lines
+		new_height = min(new_height, math.floor(window_height * 0.5))
 		local config_changed = force or false
 		if new_width ~= preview_opts.width then
 			config_changed = true
@@ -251,8 +260,13 @@ local function entrypoint(structure)
 			api.nvim_win_set_config(input_win, input_opts)
 			api.nvim_win_set_config(header_win, header_opts)
 		end
+		local current_variable = evaluator.inputs[current_index]
+		local current_variable_name = "0"
+		if current_variable then
+			current_variable_name = current_variable.id
+		end
 		local header_lines = {
-			center_pad(header_opts.width, M.input_prompt:format(current_index))
+			center_pad(header_opts.width, M.input_prompt:format(current_variable_name))
 		}
 		api.nvim_buf_set_lines(header_buf, 0, -1, false, header_lines)
 		api.nvim_buf_set_lines(preview_buf, 0, -1, false, lines)
@@ -308,12 +322,12 @@ local function entrypoint(structure)
 
 	function SNIPPETS_FLOATY_HANDLER(cmd)
 		if cmd == 0 then
-			require'snippets'.advance_snippet(-1000)
-		elseif cmd == 1 then
-			require'snippets'.advance_snippet(1)
-		elseif cmd == -1 then
-			require'snippets'.advance_snippet(-1)
+			cmd = -1000
 		end
+		if require'snippets'.has_active_snippet() then
+			return require'snippets'.advance_snippet(cmd)
+		end
+		return R.advance(cmd)
 	end
 
 	R = {
@@ -323,7 +337,7 @@ local function entrypoint(structure)
 		-- jump to the end of insertion.
 		advance = function(offset)
 			offset = offset or 1
-			current_index = math.max(math.min(current_index + offset, #evaluator.inputs + 1), 0)
+			current_index = max(min(current_index + offset, #evaluator.inputs + 1), 0)
 
 			if current_index == 0 then
 				R.aborted = true
@@ -337,6 +351,7 @@ local function entrypoint(structure)
 
 			-- Finished case.
 			if current_index > #evaluator.inputs then
+				R.finished = true
 				cleanup()
 				set_text(evaluator.evaluate_structure(resolved_inputs))
 				return true
