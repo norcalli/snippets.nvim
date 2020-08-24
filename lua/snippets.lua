@@ -230,7 +230,7 @@ return setmetatable({
 		if k == 'snippets' then
 			snippets = deepcopy(v)
 		elseif k == 'ux' then
-			set_inserter(ux)
+			set_inserter(v)
 		end
 	end;
 })
