@@ -130,7 +130,7 @@ local function entrypoint(structure)
 		win = start_win;
 		bufpos = {start_pos[1]-1, start_pos[2]};
 		col = start_win_pos[2];
-		row = start_win_pos[1];
+		row = api.nvim_win_get_config(start_win).relative ~= "" and start_win_pos[1] or 0;
 		width = width;
 		height = #dummy_text;
 	}
