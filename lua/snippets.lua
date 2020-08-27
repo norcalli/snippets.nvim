@@ -207,13 +207,15 @@ return setmetatable({
 		for k, v in pairs(example_keymap) do
 			local mode = k:sub(1,1)
 			local lhs = k:sub(2)
-			local rhs = table.remove(v, 1)
+			local rhs = v[1]
+			v[1] = nil
 			local opts = v
 			if buffer_local then
-				api.nvim_buf_set_keymap(0, mode, lhs, rhs, opts)
+				pcall(api.nvim_buf_set_keymap, 0, mode, lhs, rhs, opts)
 			else
-				api.nvim_set_keymap(mode, lhs, rhs, opts)
+				pcall(api.nvim_set_keymap, mode, lhs, rhs, opts)
 			end
+			v[1] = rhs
 		end
 	end;
 }, {
