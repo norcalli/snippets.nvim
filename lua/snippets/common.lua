@@ -55,7 +55,20 @@ local function nil_if_empty(s)
 end
 
 local function stringify_variable(v)
-	return format("${%s%s%s}", v.id or "", v.default and "="..tostring(v.default) or "", v.transform and "|" or "")
+	local placeholder = v.default
+	if type(placeholder) == 'string' then
+		if placeholder == '' then
+			placeholder = ''
+		else
+			placeholder = ':'..placeholder
+		end
+	else
+		placeholder = '='..tostring(placeholder)
+	end
+	return format("${%s%s%s}",
+		v.id or "",
+		placeholder,
+		v.transform and "|"..tostring(v.transform) or "")
 end
 
 local variable_mt = {
