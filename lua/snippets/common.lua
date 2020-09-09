@@ -318,7 +318,7 @@ local function evaluate_snippet(structure)
 			-- For non-interactive variables, the first value shall be the
 			-- value for all instances. Further transformations will still
 			-- apply due to the call to evaluate_variable after this branch.
-			if not var.is_input and var.id and not var_dict[var.id] then
+			if var.id and not var_dict[var.id] then
 				var_dict[var.id] = evaluate_variable(with_transform(var, nil), var_dict)
 				LOG_INTERNAL("Updating var dict", var, var_dict[var.id])
 			end
