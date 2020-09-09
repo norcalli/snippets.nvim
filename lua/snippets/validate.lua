@@ -23,11 +23,11 @@ local type_names = {
   ['nil']='nil', ['thread']='thread', ['userdata']='userdata',
 }
 
-local function error_out(key, expected_type, input_type)
+local function error_out(key, expected_type, input_type, extra)
   if type(expected_type) == 'table' then
     expected_type = table.concat(expected_type, ' or ')
   end
-  error(string.format("validation_failed: %q: expected %s, received %s", key, expected_type, input_type))
+  error(string.format("validation_failed: %q: expected %s, received %s. %s", key, expected_type, input_type, extra).."\n"..debug.traceback())
 end
 
 local function is_callable(v)
@@ -70,7 +70,7 @@ local function validate(conf)
     local value = v[1]
     local validate_fn = type(expected_type) == 'table' and validate_many or validate_one
     if not validate_fn(value, expected_type, optional) then
-      error_out(key, expected_type, type(value))
+      error_out(key, expected_type, type(value), vim.inspect(value))
     end
   end
   return true
