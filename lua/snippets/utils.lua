@@ -111,6 +111,7 @@ local function prefix_new_lines_with_function(s, fn)
 				end
 				return concat(lines, '\n')
 			end
+			return value
 		end
 	end
 

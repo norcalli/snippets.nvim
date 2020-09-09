@@ -51,6 +51,9 @@ require 'prelude' {
       --    - ashkan, Wed 09 Sep 2020 12:15:29 PM JST
       z([[${1:\\$0'321'}]],   {},        [[\'321']])
       z([[${1:\|$0'321'|'123'}]],   {},        [[123]])
+      z([[${=os.date()}]],   {},        os.date())
+      z([[asdf ${=os.date()}]],   {},        "asdf "..os.date())
+      z([[asdf ${|os.date()}]],   {},        "asdf "..os.date())
     end
   }
 }

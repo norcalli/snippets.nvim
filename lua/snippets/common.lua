@@ -327,7 +327,7 @@ local function evaluate_snippet(structure)
 			-- without it, the `req` snippet for lua returns nil.
 			local value = evaluate_variable(var, var_dict) or ""
 			if type(value) ~= 'string' then
-				error(("Invalid return value in snippet expression: type = %s, value = %s"):format(type(value), inspect(value)))
+				error(format("Invalid return value in snippet expression: var = %s, type = %s, value = %s", var, type(value), inspect(value)))
 			end
 			result[index] = value
 		end

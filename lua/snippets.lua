@@ -22,7 +22,7 @@ local ux = require 'snippets.inserters.floaty'
 local U = require 'snippets.common'
 local nvim = require 'snippets.nvim'
 local api = vim.api
-local deepcopy = vim.deepcopy
+local deepcopy = require 'snippets.deepcopy'
 local format = string.format
 
 local snippets = {}
