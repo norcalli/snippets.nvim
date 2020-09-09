@@ -326,7 +326,9 @@ local function evaluate_snippet(structure)
 			-- TODO(ashkan, Tue 18 Aug 2020 01:27:16 PM JST) keep this `or ""`?
 			-- without it, the `req` snippet for lua returns nil.
 			local value = evaluate_variable(var, var_dict) or ""
-			assert(type(value) == 'string', type(value))
+			if type(value) ~= 'string' then
+				error(("Invalid return value in snippet expression: type = %s, value = %s"):format(type(value), inspect(value)))
+			end
 			result[index] = value
 		end
 		-- Sanity check
