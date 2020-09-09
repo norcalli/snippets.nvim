@@ -19,12 +19,12 @@ local validate = require 'snippets.validate'
 local format = string.format
 local concat = table.concat
 local insert = table.insert
+local inspect = (vim and vim.inspect) or require 'inspect'
 
 local noop = function()end
 local LOG_INTERNAL = noop
 local function set_internal_state(is_internal)
 	if is_internal then
-		local inspect = (vim and vim.inspect) or require 'inspect'
 		-- TODO(ashkan): move to utils.
 		local function D(...)
 			local res = {}
@@ -41,9 +41,17 @@ local function set_internal_state(is_internal)
 	end
 end
 
+local function is_callable(x)
+	if type(x) == 'function' then
+		return true
+	elseif type(x) == 'table' then
+		local mt = getmetatable(x)
+		return mt and mt.__call
+	end
+end
+
 local function materialize(v, ...)
-	-- TODO(ashkan, 2020-08-16 02:01:26+0900) callable
-	if type(v) == 'function' then
+	if is_callable(v) then
 		return materialize(v(...), ...)
 	end
 	return v
@@ -167,7 +175,7 @@ local function normalize_structure_component(v)
 			return setmetatable(v, variable_mt)
 		end
 	else
-		error("No idea how to handle structure component: "..vim.inspect(v))
+		error("No idea how to handle structure component: "..inspect(v))
 	end
 end
 
@@ -189,7 +197,7 @@ local function evaluate_variable(var, defined_variables)
 		value = defined_variables[var.id]
 	end
 	if not value and var.default then
-		if type(var.default) == 'function' then
+		if is_callable(var.default) then
 			-- TODO(ashkan, Tue 18 Aug 2020 08:37:58 AM JST) pcall?
 			local context = make_context(nil, defined_variables)
 			value = materialize(var.default, context)
@@ -375,7 +383,18 @@ local function make_lambda(body, chunkname)
 	if type(body) == 'function' then
 		return body
 	end
-	return assert(loadstring("local S = ... return "..body, chunk_name))
+	local f, err = loadstring("local S = ... return "..body, chunk_name)
+	if not f then
+		error("Failed to make_lambda: "..err)
+	end
+	-- return f
+	-- TODO:
+	--  only on debug?
+	--    - ashkan, Wed 09 Sep 2020 11:51:32 AM JST
+	return setmetatable({}, {
+		__call = function(_, ...) return f(...) end;
+		__tostring = function() return body end;
+	})
 end
 
 -- TODO(ashkan, Wed 19 Aug 2020 12:28:10 AM JST) move this to text_markers or delete it.
