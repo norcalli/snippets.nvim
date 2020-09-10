@@ -1,17 +1,17 @@
 -- Copyright (C) 2020 Ashkan Kiani
 -- This is part of the snippets.nvim distribution.
 -- https://github.com/norcalli/snippets.nvim
--- 
+--
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
 -- the Free Software Foundation, either version 3 of the License, or
 -- (at your option) any later version.
--- 
+--
 -- This program is distributed in the hope that it will be useful,
 -- but WITHOUT ANY WARRANTY; without even the implied warranty of
 -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 -- GNU General Public License for more details.
--- 
+--
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
@@ -124,12 +124,13 @@ local function entrypoint(structure)
 	local start_win = api.nvim_get_current_win()
 	local start_buf = api.nvim_get_current_buf()
 	local start_pos = api.nvim_win_get_cursor(start_win)
+	local start_win_pos = api.nvim_win_get_position(start_win)
 	local preview_buf, preview_win, preview_opts = floaty_popup {
 		relative = 'win';
 		win = start_win;
 		bufpos = {start_pos[1]-1, start_pos[2]};
-		col = 0;
-		row = 0;
+		col = start_win_pos[2];
+		row = api.nvim_win_get_config(start_win).relative ~= "" and start_win_pos[1] or 0;
 		width = width;
 		height = #dummy_text;
 	}
@@ -137,7 +138,7 @@ local function entrypoint(structure)
 		relative = 'win';
 		win = start_win;
 		bufpos = {start_pos[1]-1, start_pos[2]};
-		col = 0;
+		col = preview_opts.col;
 		row = preview_opts.row + preview_opts.height;
 		width = preview_opts.width;
 		height = 1;
@@ -147,7 +148,7 @@ local function entrypoint(structure)
 		relative = 'win';
 		win = start_win;
 		bufpos = {start_pos[1]-1, start_pos[2]};
-		col = 0;
+		col = header_opts.col;
 		row = header_opts.row + header_opts.height;
 		width = preview_opts.width;
 		height = 3;
