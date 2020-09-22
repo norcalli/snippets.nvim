@@ -315,8 +315,8 @@ local function entrypoint(structure)
 
 	api.nvim_buf_set_keymap(input_buf, 'i', '<c-g>', '<Cmd>lua SNIPPETS_FLOATY_HANDLER(0)<cr>', { noremap = true; silent = true })
 	api.nvim_buf_set_keymap(input_buf, 'i', '<c-c>', '<Cmd>lua SNIPPETS_FLOATY_HANDLER(0)<cr>', { noremap = true; silent = true })
-	api.nvim_buf_set_keymap(input_buf, 'i', '<c-k>', '<Cmd>lua SNIPPETS_FLOATY_HANDLER(1)<cr>', { noremap = true; silent = true })
-	api.nvim_buf_set_keymap(input_buf, 'i', '<c-j>', '<Cmd>lua SNIPPETS_FLOATY_HANDLER(-1)<cr>', { noremap = true; silent = true })
+	-- api.nvim_buf_set_keymap(input_buf, 'i', '<c-k>', '<Cmd>lua SNIPPETS_FLOATY_HANDLER(1)<cr>', { noremap = true; silent = true })
+	-- api.nvim_buf_set_keymap(input_buf, 'i', '<c-j>', '<Cmd>lua SNIPPETS_FLOATY_HANDLER(-1)<cr>', { noremap = true; silent = true })
 
 	local R
 
