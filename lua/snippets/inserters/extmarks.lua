@@ -2,15 +2,19 @@ local api = vim.api
 local U = require("snippets/common")
 local ns = api.nvim_create_namespace("")
 
-local marker_with_placeholder_format = "${%d:%s}"
-local replacement_marker_format = "$%d"
-local post_transform_marker_format = "${|%s}"
-local zero_pattern = replacement_marker_format:format(0)
+local M = {}
+
+-- These are user-configurable
+M.marker_with_placeholder_format = "${%d:%s}"
+M.replacement_marker_format = "$%d"
+M.post_transform_marker_format = "${|%s}"
+M.zero_pattern = M.replacement_marker_format:format(0)
+M.hl_group = "Visual"
 
 local function set_extmark(lnum, col, len)
 	return api.nvim_buf_set_extmark(0, ns, lnum - 1, col, {
 		end_col = col + len,
-		hl_group = "Visual",
+		hl_group = M.hl_group,
 	})
 end
 
@@ -48,7 +52,7 @@ end
 local function update_structure(evaluator, resolved_inputs)
 	local inputs = {}
 	for i, v in ipairs(evaluator.inputs) do
-		inputs[i] = resolved_inputs[i] or replacement_marker_format:format(v.id)
+		inputs[i] = resolved_inputs[i] or M.replacement_marker_format:format(v.id)
 	end
 
 	local S = evaluator.evaluate_structure(inputs)
@@ -56,19 +60,19 @@ local function update_structure(evaluator, resolved_inputs)
 	local placeholders = evaluator.evaluate_inputs(resolved_inputs)
 	for i, v in ipairs(evaluator.inputs) do
 		if not resolved_inputs[i] then
-			S[v.first_index] = marker_with_placeholder_format:format(v.id, placeholders[i])
+			S[v.first_index] = M.marker_with_placeholder_format:format(v.id, placeholders[i])
 		end
 	end
 
 	-- Add markers for anonymous transforms to be evaluated at the end of the expansion
 	for i, v in ipairs(evaluator.structure) do
 		if U.is_variable(v) and v.transform and not v.id then
-			S[i] = post_transform_marker_format:format(i)
+			S[i] = M.post_transform_marker_format:format(i)
 		end
 	end
 
 	-- Finally, place a marker for where the cursor should finish at the end of expansion
-	S[evaluator.zero_index or #S + 1] = replacement_marker_format:format(0)
+	S[evaluator.zero_index or #S + 1] = M.replacement_marker_format:format(0)
 
 	return S
 end
@@ -117,7 +121,7 @@ local function entrypoint(structure)
 			if current_index > 1 then
 				local input_index = current_index - 1
 				local var = evaluator.inputs[input_index]
-				local user_input_pattern = marker_with_placeholder_format:format(var.id, "([^}]*)")
+				local user_input_pattern = M.marker_with_placeholder_format:format(var.id, "([^}]*)")
 
 				for _, line in ipairs(snippet) do
 					local user_input = line:match(user_input_pattern)
@@ -145,7 +149,7 @@ local function entrypoint(structure)
 				for i, v in pairs(evaluator.structure) do
 					if U.is_variable(v) and v.transform and not v.id then
 						table.insert(post_transforms, {
-							marker = post_transform_marker_format:format(i),
+							marker = M.post_transform_marker_format:format(i),
 							text = assert(S)[i],
 							id = i,
 						})
@@ -166,7 +170,7 @@ local function entrypoint(structure)
 						end
 					end
 
-					line, j = U.find_sub(line, "", zero_pattern, 1, true)
+					line, j = U.find_sub(line, "", M.zero_pattern, 1, true)
 					if j then
 						zero_point = { lnum_start + i - 1, j - 1 }
 					end
@@ -187,7 +191,7 @@ local function entrypoint(structure)
 			end
 
 			-- Move the cursor to the next variable and update the placeholder text
-			local marker_pattern = marker_with_placeholder_format:format(current_index, "()[^}]*()")
+			local marker_pattern = M.marker_with_placeholder_format:format(current_index, "()[^}]*()")
 			local row
 			for i, line in ipairs(snippet) do
 				local j, _, inner_start, inner_end = line:find(marker_pattern)
@@ -218,4 +222,6 @@ local function entrypoint(structure)
 	return R
 end
 
-return entrypoint
+return setmetatable(M, {
+	__call = function(_, ...) return entrypoint(...) end
+})
