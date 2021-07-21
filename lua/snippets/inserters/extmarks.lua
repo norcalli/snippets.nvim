@@ -73,23 +73,28 @@ local function update_structure(evaluator, resolved_inputs)
 	return S
 end
 
+local function structure_to_lines(S, prefix, suffix)
+	local body = table.concat(S)
+	local lines = vim.split(body, "\n")
+	lines[1] = prefix .. lines[1]
+	lines[#lines] = lines[#lines] .. suffix
+	return lines
+end
+
 local function entrypoint(structure)
 	local evaluator = U.evaluate_snippet(structure)
 
 	local S = update_structure(evaluator, {})
 
-	local body = table.concat(S)
-	local lines = vim.split(body, "\n")
-
 	local lnum_start, col = unpack(api.nvim_win_get_cursor(0))
-	local lnum_end = lnum_start + #lines
 	local current_line = api.nvim_get_current_line()
-
-	lines[1] = current_line:sub(1, col) .. lines[1]
-	lines[#lines] = lines[#lines] .. current_line:sub(col + 1)
+	local current_prefix = current_line:sub(1, col)
+	local current_suffix = current_line:sub(col + 1)
+	local snippet = structure_to_lines(S, current_prefix, current_suffix)
+	local lnum_end = lnum_start + #snippet
 
 	-- Write the snippet to the buffer
-	api.nvim_buf_set_lines(0, lnum_start - 1, lnum_start, false, lines)
+	api.nvim_buf_set_lines(0, lnum_start - 1, lnum_start, false, snippet)
 
 	local current_index = 0
 	local resolved_inputs = {}
@@ -103,11 +108,10 @@ local function entrypoint(structure)
 			current_index = math.max(math.min(current_index + offset, #evaluator.inputs + 1), 0)
 			if current_index == 0 then
 				R.aborted = true
-				cleanup_marks(marks)
 				return true
 			end
 
-			local snippet = api.nvim_buf_get_lines(0, lnum_start - 1, lnum_end, false)
+			snippet = api.nvim_buf_get_lines(0, lnum_start - 1, lnum_end - 1, false)
 
 			-- Find what the user entered for the previous variable and update the structure
 			if current_index > 1 then
@@ -115,33 +119,18 @@ local function entrypoint(structure)
 				local var = evaluator.inputs[input_index]
 				local user_input_pattern = marker_with_placeholder_format:format(var.id, "([^}]*)")
 
-				for i, line in ipairs(snippet) do
+				for _, line in ipairs(snippet) do
 					local user_input = line:match(user_input_pattern)
 					if user_input then
 						resolved_inputs[input_index] = user_input
 						S = update_structure(evaluator, resolved_inputs)
-						snippet[i] = line:gsub(user_input_pattern, S[var.first_index])
+						snippet = structure_to_lines(S, current_prefix, current_suffix)
+						lnum_end = lnum_start + #snippet
 						break
 					end
 				end
 
-				if resolved_inputs[input_index] then
-					local replacement_index = var.first_index
-					local replacement_marker = replacement_marker_format:format(var.id)
-					for i, line in ipairs(snippet) do
-						snippet[i] = line:gsub(replacement_marker, function()
-							for j = replacement_index + 1, #evaluator.structure do
-								local v = evaluator.structure[j]
-								if U.is_variable(v) and v.id == var.id then
-									replacement_index = j
-									return S[j]
-								end
-							end
-							return S[var.first_index]
-						end)
-					end
-					-- set_marks(lnum_start, evaluator, updated_structure, current_index)
-				else
+				if not resolved_inputs[input_index] then
 					R.aborted = true
 					print("Aborting the current snippet")
 					api.nvim_command("mode")
@@ -190,7 +179,7 @@ local function entrypoint(structure)
 				end
 
 				if zero_point then
-					api.nvim_buf_set_lines(0, lnum_start - 1, -1, false, snippet)
+					api.nvim_buf_set_lines(0, lnum_start - 1, lnum_end - 1, false, snippet)
 					api.nvim_win_set_cursor(0, zero_point)
 				end
 
@@ -216,7 +205,7 @@ local function entrypoint(structure)
 			end
 
 			if row then
-				api.nvim_buf_set_lines(0, lnum_start - 1, -1, false, snippet)
+				api.nvim_buf_set_lines(0, lnum_start - 1, lnum_end - 1, false, snippet)
 				api.nvim_win_set_cursor(0, { row - 1, col - 1 })
 				marks = set_marks(lnum_start, evaluator.structure, S, current_index)
 			else
