@@ -35,7 +35,7 @@ local function update_structure(evaluator, resolved_inputs)
 end
 
 local function set_extmark(id, line, col, end_line, end_col, hl_group)
-  local _ = api.nvim_buf_set_extmark(0, ns, line, col, {
+  api.nvim_buf_set_extmark(0, ns, line, col, {
     id = id,
     end_line = end_line,
     end_col = end_col,
@@ -53,6 +53,11 @@ end
 local function set_extmark_text(id, text)
   local row, col, end_row, end_col = get_extmark_pos(id)
   api.nvim_buf_set_text(0, row, col, end_row, end_col, vim.split(text, "\n"))
+end
+
+local function cleanup()
+  api.nvim_buf_clear_namespace(0, ns, 0, -1)
+  vim.register_keystroke_callback(nil, ns)
 end
 
 local function entrypoint(structure)
@@ -81,7 +86,7 @@ local function entrypoint(structure)
       end
 
       if U.is_variable(v) then
-        set_extmark(i, lnum - 1, col, nil, col + #s)
+        set_extmark(i, lnum - 1, col, lnum - 1, col + #s)
       end
 
       local tail = s:gsub("[^\n]*\n", function()
@@ -108,8 +113,7 @@ local function entrypoint(structure)
       current_index = math.max(math.min(current_index + offset, #evaluator.inputs + 1), 0)
       if current_index == 0 then
         R.aborted = true
-        api.nvim_buf_clear_namespace(0, ns, 0, -1)
-        vim.register_keystroke_callback(nil, ns)
+        cleanup()
         return true
       end
 
@@ -127,10 +131,7 @@ local function entrypoint(structure)
         api.nvim_buf_set_text(0, cur_row, cur_col, cur_end_row, cur_end_col, {})
         api.nvim_win_set_cursor(0, { cur_row + 1, cur_col })
 
-        -- Clear all extmarks
-        api.nvim_buf_clear_namespace(0, ns, 0, -1)
-        vim.register_keystroke_callback(nil, ns)
-
+        cleanup()
         R.finished = true
         return true
       end
