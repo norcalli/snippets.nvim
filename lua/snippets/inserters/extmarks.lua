@@ -159,6 +159,9 @@ local function entrypoint(structure)
     local mark_row, mark_col, _, mark_end_col = get_extmark_pos(current_var.first_index)
     api.nvim_win_set_cursor(0, { mark_row + 1, mark_end_col })
 
+    -- Set resolved input to default value if one exists
+    resolved_inputs[current_var.id] = current_var.default
+
     vim.register_keystroke_callback(
       vim.schedule_wrap(function()
         if R.finished or R.aborted then
