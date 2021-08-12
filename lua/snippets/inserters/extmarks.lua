@@ -7,7 +7,6 @@ local M = {}
 
 -- These are user-configurable
 M.marker_with_placeholder_format = "${%d:%s}"
-M.post_transform_marker_format = "${|%s}"
 M.zero_pattern = "$0"
 M.hl_group = "Visual"
 
@@ -46,13 +45,6 @@ local function entrypoint(structure)
   local placeholders = evaluator.evaluate_inputs({})
   for i, v in ipairs(evaluator.inputs) do
     S[v.first_index] = M.marker_with_placeholder_format:format(v.id, placeholders[i])
-  end
-
-  -- Insert markers for anonymouse transformations
-  for i, v in ipairs(evaluator.structure) do
-    if U.is_variable(v) and v.transform and not v.id then
-      S[i] = M.post_transform_marker_format:format(i)
-    end
   end
 
   -- If the snippet contains a $0, insert a marker for the where the cursor will end up
