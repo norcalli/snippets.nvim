@@ -111,12 +111,6 @@ local function entrypoint(structure)
     -- User has moved past the last variable, so apply transformations and move the cursor to the
     -- zero point
     if current_index > #evaluator.inputs then
-      for i, v in pairs(evaluator.structure) do
-        if U.is_variable(v) and v.transform and not v.id then
-          set_extmark_text(bufnr, i, S[i])
-        end
-      end
-
       -- Move cursor to zero point
       local cur_row, cur_col, cur_end_row, cur_end_col = get_extmark_pos(bufnr, cursor_mark_id)
       api.nvim_buf_set_text(bufnr, cur_row, cur_col, cur_end_row, cur_end_col, {})
@@ -150,8 +144,8 @@ local function entrypoint(structure)
       end
     end
 
-    -- Move the cursor to the current variable
     do
+      -- Move the cursor to the current variable
       local mark_row, _, _, mark_end_col = get_extmark_pos(bufnr, current_var.first_index)
       api.nvim_win_set_cursor(win, { mark_row + 1, mark_end_col })
     end
@@ -172,10 +166,13 @@ local function entrypoint(structure)
         resolved_inputs[current_var.id] = mark_text
         S = evaluator.evaluate_structure(resolved_inputs)
 
-        for i = current_var.first_index + 1, #evaluator.structure do
-          local v = evaluator.structure[i]
-          if U.is_variable(v) and v.id == current_var.id then
-            set_extmark_text(bufnr, i, S[i])
+        for i, v in ipairs(evaluator.structure) do
+          if U.is_variable(v) then
+            -- Update variables related to the current variable as well as
+            -- anonymous transforms
+            if v.order == current_index or v.transform and not v.id then
+              set_extmark_text(bufnr, i, S[i])
+            end
           end
         end
       end),
