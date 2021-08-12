@@ -10,8 +10,8 @@ M.marker_with_placeholder_format = "${%d:%s}"
 M.zero_pattern = "$0"
 M.hl_group = "Visual"
 
-local function set_extmark(id, line, col, end_line, end_col, hl_group)
-  api.nvim_buf_set_extmark(0, ns, line, col, {
+local function set_extmark(bufnr, id, line, col, end_line, end_col, hl_group)
+  api.nvim_buf_set_extmark(bufnr, ns, line, col, {
     id = id,
     end_line = end_line,
     end_col = end_col,
@@ -21,22 +21,25 @@ local function set_extmark(id, line, col, end_line, end_col, hl_group)
   })
 end
 
-local function get_extmark_pos(id)
-  local row, col, details = unpack(api.nvim_buf_get_extmark_by_id(0, ns, id, { details = true }))
+local function get_extmark_pos(bufnr, id)
+  local row, col, details = unpack(api.nvim_buf_get_extmark_by_id(bufnr, ns, id, { details = true }))
   return row, col, details and details.end_row or row, details and details.end_col or col
 end
 
-local function set_extmark_text(id, text)
-  local row, col, end_row, end_col = get_extmark_pos(id)
-  api.nvim_buf_set_text(0, row, col, end_row, end_col, vim.split(text, "\n"))
+local function set_extmark_text(bufnr, id, text)
+  local row, col, end_row, end_col = get_extmark_pos(bufnr, id)
+  api.nvim_buf_set_text(bufnr, row, col, end_row, end_col, vim.split(text, "\n"))
 end
 
-local function cleanup()
-  api.nvim_buf_clear_namespace(0, ns, 0, -1)
+local function cleanup(bufnr)
+  api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
   vim.register_keystroke_callback(nil, ns)
 end
 
 local function entrypoint(structure)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local win = vim.api.nvim_get_current_win()
+
   local evaluator = U.evaluate_snippet(structure)
 
   -- Evalute the structure and insert placeholder markers for input variables
@@ -56,7 +59,7 @@ local function entrypoint(structure)
 
   -- Write the snippet to the buffer and create the extmarks
   do
-    local lnum, col = unpack(api.nvim_win_get_cursor(0))
+    local lnum, col = unpack(api.nvim_win_get_cursor(win))
 
     local current_line = api.nvim_get_current_line()
     local prefix = current_line:sub(1, col)
@@ -65,12 +68,12 @@ local function entrypoint(structure)
     local lines = vim.split(table.concat(S), "\n")
     lines[1] = prefix .. lines[1]
     lines[#lines] = lines[#lines] .. suffix
-    api.nvim_buf_set_lines(0, lnum - 1, lnum, true, lines)
+    api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, true, lines)
 
     for i, v in ipairs(evaluator.structure) do
       local s = S[i]
       if U.is_variable(v) then
-        set_extmark(i, lnum - 1, col, lnum - 1, col + #s)
+        set_extmark(bufnr, i, lnum - 1, col, lnum - 1, col + #s)
         if i == evaluator.zero_index then
           cursor_mark_id = i
         end
@@ -86,7 +89,7 @@ local function entrypoint(structure)
     end
 
     if not cursor_mark_id then
-      cursor_mark_id = api.nvim_buf_set_extmark(0, ns, lnum - 1, col, {})
+      cursor_mark_id = api.nvim_buf_set_extmark(bufnr, ns, lnum - 1, col, {})
     end
   end
 
@@ -101,7 +104,7 @@ local function entrypoint(structure)
     current_index = math.max(math.min(current_index + offset, #evaluator.inputs + 1), 0)
     if current_index == 0 then
       R.aborted = true
-      cleanup()
+      cleanup(bufnr)
       return true
     end
 
@@ -110,17 +113,17 @@ local function entrypoint(structure)
     if current_index > #evaluator.inputs then
       for i, v in pairs(evaluator.structure) do
         if U.is_variable(v) and v.transform and not v.id then
-          set_extmark_text(i, S[i])
+          set_extmark_text(bufnr, i, S[i])
         end
       end
 
       -- Move cursor to zero point
-      local cur_row, cur_col, cur_end_row, cur_end_col = get_extmark_pos(cursor_mark_id)
-      api.nvim_buf_set_text(0, cur_row, cur_col, cur_end_row, cur_end_col, {})
-      api.nvim_win_set_cursor(0, { cur_row + 1, cur_col })
+      local cur_row, cur_col, cur_end_row, cur_end_col = get_extmark_pos(bufnr, cursor_mark_id)
+      api.nvim_buf_set_text(bufnr, cur_row, cur_col, cur_end_row, cur_end_col, {})
+      api.nvim_win_set_cursor(win, { cur_row + 1, cur_col })
 
       R.finished = true
-      cleanup()
+      cleanup(bufnr)
       return true
     end
 
@@ -130,8 +133,8 @@ local function entrypoint(structure)
     for i, v in ipairs(evaluator.structure) do
       if U.is_variable(v) then
         local hl_group = v.order == current_index and M.hl_group or nil
-        local row, col, end_row, end_col = get_extmark_pos(i)
-        set_extmark(i, row, col, end_row, end_col, hl_group)
+        local row, col, end_row, end_col = get_extmark_pos(bufnr, i)
+        set_extmark(bufnr, i, row, col, end_row, end_col, hl_group)
       end
     end
 
@@ -143,13 +146,15 @@ local function entrypoint(structure)
         if v.id ~= current_var.id then
           text = M.marker_with_placeholder_format:format(v.id, text)
         end
-        set_extmark_text(i, text)
+        set_extmark_text(bufnr, i, text)
       end
     end
 
     -- Move the cursor to the current variable
-    local mark_row, mark_col, _, mark_end_col = get_extmark_pos(current_var.first_index)
-    api.nvim_win_set_cursor(0, { mark_row + 1, mark_end_col })
+    do
+      local mark_row, _, _, mark_end_col = get_extmark_pos(bufnr, current_var.first_index)
+      api.nvim_win_set_cursor(win, { mark_row + 1, mark_end_col })
+    end
 
     -- Set resolved input to default value if one exists
     resolved_inputs[current_var.id] = current_var.default
@@ -160,8 +165,8 @@ local function entrypoint(structure)
           return
         end
 
-        mark_row, mark_col, _, mark_end_col = get_extmark_pos(current_var.first_index)
-        local line = api.nvim_buf_get_lines(0, mark_row, mark_row + 1, true)[1]
+        local mark_row, mark_col, _, mark_end_col = get_extmark_pos(bufnr, current_var.first_index)
+        local line = api.nvim_buf_get_lines(bufnr, mark_row, mark_row + 1, true)[1]
         local mark_text = line:sub(mark_col + 1, mark_end_col)
 
         resolved_inputs[current_var.id] = mark_text
@@ -170,7 +175,7 @@ local function entrypoint(structure)
         for i = current_var.first_index + 1, #evaluator.structure do
           local v = evaluator.structure[i]
           if U.is_variable(v) and v.id == current_var.id then
-            set_extmark_text(i, S[i])
+            set_extmark_text(bufnr, i, S[i])
           end
         end
       end),
