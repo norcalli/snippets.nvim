@@ -33,7 +33,8 @@ end
 
 local function cleanup(bufnr)
   api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-  vim.register_keystroke_callback(nil, ns)
+  local F = vim.F.if_nil(vim.on_key, vim.register_keystroke_callback)
+  F(nil, ns)
 end
 
 local function entrypoint(structure)
@@ -153,7 +154,8 @@ local function entrypoint(structure)
     -- Set resolved input to default value if one exists
     resolved_inputs[current_var.id] = current_var.default
 
-    vim.register_keystroke_callback(
+    local F = vim.F.if_nil(vim.on_key, vim.register_keystroke_callback)
+    F(
       vim.schedule_wrap(function()
         if R.finished or R.aborted then
           return
