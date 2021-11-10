@@ -145,23 +145,33 @@ local function entrypoint(structure)
       end
     end
 
-    do
-      -- Move the cursor to the current variable
-      local mark_row, _, _, mark_end_col = get_extmark_pos(bufnr, current_var.first_index)
-      api.nvim_win_set_cursor(win, { mark_row + 1, mark_end_col })
-    end
+    -- Move the cursor to the current variable
+    local mark_row, mark_col, _, mark_end_col = get_extmark_pos(bufnr, current_var.first_index)
+    api.nvim_win_set_cursor(win, { mark_row + 1, mark_end_col })
 
     -- Set resolved input to default value if one exists
     resolved_inputs[current_var.id] = current_var.default
 
+    -- When a variable is highlighted, the first key pressed replaces the current value
+    -- with the user's input
+    local user_pressed_key = false
+
     local F = vim.F.if_nil(vim.on_key, vim.register_keystroke_callback)
     F(
-      vim.schedule_wrap(function()
+      vim.schedule_wrap(function(key)
         if R.finished or R.aborted then
           return
         end
 
-        local mark_row, mark_col, _, mark_end_col = get_extmark_pos(bufnr, current_var.first_index)
+        if not user_pressed_key and key:match("^[%w%p]$") then
+        print(key)
+          set_extmark_text(bufnr, current_var.first_index, key)
+          user_pressed_key = true
+          api.nvim_win_set_cursor(win, { mark_row + 1, mark_col + #key })
+          return
+        end
+
+        mark_row, mark_col, _, mark_end_col = get_extmark_pos(bufnr, current_var.first_index)
         local line = api.nvim_buf_get_lines(bufnr, mark_row, mark_row + 1, true)[1]
         local mark_text = line:sub(mark_col + 1, mark_end_col)
 
