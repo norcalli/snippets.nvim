@@ -4,7 +4,7 @@ Check the [Wiki](https://github.com/norcalli/snippets.nvim/wiki) for examples an
 
 # Installation
 
-`Plug norcalli/snippets.nvim`
+`Plug 'norcalli/snippets.nvim'`
 
 # Usage:
 
